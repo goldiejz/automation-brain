@@ -13,6 +13,10 @@
 
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export interface ModelMetadata {
   modelId: string;
@@ -487,7 +491,8 @@ export async function runModelRegistry() {
 
 export { DynamicModelRegistry };
 
-if (require.main === module) {
+// ESM-compatible main check
+if (import.meta.url === `file://${process.argv[1]}`) {
   runModelRegistry().catch((err) => {
     console.error("❌ Model registry failed:", err);
     process.exit(1);
