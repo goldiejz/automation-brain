@@ -2,11 +2,15 @@
   "name": "automation-brain",
   "version": "1.0.0",
   "description": "Obsidian brain for multi-project automation learning",
-  "type": "module",
   "scripts": {
     "phase-6": "npx ts-node observability/phase-6-daemon.ts",
     "phase-6-ext": "npx ts-node observability/phase-6-daemon-extended.ts",
     "phase-7": "npx ts-node observability/phase-7-tier-resolver.ts",
     "phase-7-ext": "npx ts-node observability/phase-7-multi-model-resolver.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.3"
   }
 }

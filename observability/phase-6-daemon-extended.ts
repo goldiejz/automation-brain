@@ -6,13 +6,9 @@
  * Feeds into Phase 7 tier resolver for latest model selection.
  */
 
-import { DynamicModelRegistry } from "./phase-7-model-registry.ts";
+import { DynamicModelRegistry } from "./phase-7-model-registry";
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 async function updateModelRegistry() {
   console.log("🤖 Phase 6 Extended: Model Registry Update\n");
@@ -150,8 +146,7 @@ Scheduled for next week. Model registry will be checked again for:
 
 export { updateModelRegistry };
 
-// ESM-compatible main check
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (require.main === module) {
   updateModelRegistry()
     .then((result) => {
       console.log("📊 Registry Update Result:");
