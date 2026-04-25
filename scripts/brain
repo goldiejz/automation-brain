@@ -1,0 +1,185 @@
+#!/usr/bin/env bash
+# brain — Single command to activate the automation brain in any project
+#
+# Usage (from any sub-project directory):
+#   brain                    # Default: sync + show status
+#   brain sync               # Pull latest vault, refresh snapshot
+#   brain bootstrap          # Run new project bootstrap
+#   brain status             # Show current snapshot state
+#   brain insights           # Show latest cross-project insights
+#   brain lessons            # List all lessons available
+#   brain phase-6            # Trigger Phase 6 daemon manually
+#   brain init               # Initialize .parent-automation in current project
+#
+# Install once:
+#   ln -sf ~/vaults/automation-brain/scripts/brain /usr/local/bin/brain
+
+set -euo pipefail
+
+VAULT_PATH="${AUTOMATION_BRAIN_PATH:-$HOME/vaults/automation-brain}"
+COMMAND="${1:-default}"
+PROJECT_DIR="$(pwd)"
+
+# Colors
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+print_header() {
+  echo -e "${BLUE}🧠 Automation Brain${NC}"
+  echo -e "   Vault: $VAULT_PATH"
+  echo -e "   Project: $PROJECT_DIR"
+  echo ""
+}
+
+cmd_sync() {
+  print_header
+  bash "$VAULT_PATH/scripts/brain-sync.sh" "$PROJECT_DIR"
+}
+
+cmd_status() {
+  print_header
+  if [[ -f "$PROJECT_DIR/.parent-automation/brain-snapshot/SNAPSHOT-MANIFEST.json" ]]; then
+    echo -e "${GREEN}✅ Snapshot present${NC}"
+    cat "$PROJECT_DIR/.parent-automation/brain-snapshot/SNAPSHOT-MANIFEST.json" | head -20
+  else
+    echo -e "${YELLOW}⚠️  No snapshot yet. Run: brain sync${NC}"
+  fi
+  echo ""
+  if [[ -f "$PROJECT_DIR/.planning/bootstrap-decisions.jsonl" ]]; then
+    DECISIONS=$(wc -l < "$PROJECT_DIR/.planning/bootstrap-decisions.jsonl" | tr -d ' ')
+    echo -e "${GREEN}✅ Decisions logged: $DECISIONS${NC}"
+  else
+    echo -e "${YELLOW}⚠️  No decision log yet${NC}"
+  fi
+}
+
+cmd_bootstrap() {
+  print_header
+  if [[ ! -f "$PROJECT_DIR/.parent-automation/new-project-bootstrap-v2.ts" ]]; then
+    echo -e "${RED}❌ No bootstrap script found. Run: brain init${NC}"
+    exit 1
+  fi
+  cd "$PROJECT_DIR/.parent-automation"
+  npx --yes tsx new-project-bootstrap-v2.ts
+}
+
+cmd_insights() {
+  print_header
+  echo -e "${BLUE}📊 Cross-Project Insights:${NC}"
+  echo ""
+  if [[ -f "$VAULT_PATH/observability/cross-customer-insights.md" ]]; then
+    cat "$VAULT_PATH/observability/cross-customer-insights.md" | head -60
+  else
+    echo "No insights yet. Run: brain phase-6"
+  fi
+}
+
+cmd_lessons() {
+  print_header
+  echo -e "${BLUE}📚 Available Lessons:${NC}"
+  echo ""
+  find "$VAULT_PATH/lessons" -name "*.md" -type f 2>/dev/null | while read -r f; do
+    title=$(grep -m1 "^# " "$f" 2>/dev/null | sed 's/^# //' || basename "$f")
+    echo "  • $title"
+  done | head -30
+  echo ""
+  TOTAL=$(find "$VAULT_PATH/lessons" -name "*.md" -type f | wc -l | tr -d ' ')
+  echo "  Total: $TOTAL lessons"
+}
+
+cmd_phase6() {
+  print_header
+  echo -e "${BLUE}🔄 Running Phase 6 daemon...${NC}"
+  cd "$VAULT_PATH"
+  npx ts-node observability/phase-6-daemon.ts
+}
+
+cmd_init() {
+  print_header
+  echo -e "${BLUE}🆕 Initializing .parent-automation in $PROJECT_DIR${NC}"
+  echo ""
+
+  if [[ -d "$PROJECT_DIR/.parent-automation" ]]; then
+    echo -e "${YELLOW}⚠️  .parent-automation already exists${NC}"
+    read -p "Overwrite? (y/N) " -n 1 -r
+    echo
+    [[ ! $REPLY =~ ^[Yy]$ ]] && exit 0
+  fi
+
+  # Pick a reference project to copy from
+  REFERENCE="$HOME/code/strategix-servicedesk/.parent-automation"
+  if [[ ! -d "$REFERENCE" ]]; then
+    echo -e "${RED}❌ Reference project not found: $REFERENCE${NC}"
+    exit 1
+  fi
+
+  mkdir -p "$PROJECT_DIR/.parent-automation"
+  mkdir -p "$PROJECT_DIR/.planning"
+
+  # Copy bootstrap and query modules
+  cp "$REFERENCE/query-brain.ts" "$PROJECT_DIR/.parent-automation/"
+  cp "$REFERENCE/new-project-bootstrap-v2.ts" "$PROJECT_DIR/.parent-automation/"
+  cp "$REFERENCE/tsconfig.json" "$PROJECT_DIR/.parent-automation/"
+
+  # Initialize decision log
+  touch "$PROJECT_DIR/.planning/bootstrap-decisions.jsonl"
+
+  # Run sync to populate snapshot
+  bash "$VAULT_PATH/scripts/brain-sync.sh" "$PROJECT_DIR"
+
+  echo ""
+  echo -e "${GREEN}✅ Initialized! Next steps:${NC}"
+  echo "  brain bootstrap   # Run bootstrap workflow"
+  echo "  brain status      # Check state"
+}
+
+cmd_help() {
+  cat <<EOF
+🧠 Automation Brain — Single command interface
+
+Usage: brain [command]
+
+Commands:
+  sync          Pull latest vault, refresh local snapshot (default)
+  status        Show snapshot + decision log state
+  bootstrap     Run new project bootstrap (with brain queries)
+  insights      Show cross-project insights from Phase 6
+  lessons       List all lessons in the brain
+  phase-6       Manually trigger Phase 6 observability daemon
+  init          Initialize .parent-automation in current project
+  help          Show this help
+
+Environment:
+  AUTOMATION_BRAIN_PATH  Path to vault (default: ~/vaults/automation-brain)
+
+Examples:
+  cd ~/code/my-project && brain          # Sync and show status
+  brain bootstrap                         # Run bootstrap
+  brain insights                          # See cross-project patterns
+EOF
+}
+
+# Default command: sync + status
+case "$COMMAND" in
+  default|"")
+    cmd_sync
+    echo ""
+    cmd_status
+    ;;
+  sync)       cmd_sync ;;
+  status)     cmd_status ;;
+  bootstrap)  cmd_bootstrap ;;
+  insights)   cmd_insights ;;
+  lessons)    cmd_lessons ;;
+  phase-6)    cmd_phase6 ;;
+  init)       cmd_init ;;
+  help|-h|--help)  cmd_help ;;
+  *)
+    echo -e "${RED}❌ Unknown command: $COMMAND${NC}"
+    cmd_help
+    exit 1
+    ;;
+esac
