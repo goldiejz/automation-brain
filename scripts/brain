@@ -102,36 +102,58 @@ cmd_init() {
   echo -e "${BLUE}🆕 Initializing .parent-automation in $PROJECT_DIR${NC}"
   echo ""
 
-  if [[ -d "$PROJECT_DIR/.parent-automation" ]]; then
-    echo -e "${YELLOW}⚠️  .parent-automation already exists${NC}"
-    read -p "Overwrite? (y/N) " -n 1 -r
-    echo
-    [[ ! $REPLY =~ ^[Yy]$ ]] && exit 0
+  # Templates live in the vault — single source of truth
+  TEMPLATE_DIR="$VAULT_PATH/templates/parent-automation"
+  if [[ ! -d "$TEMPLATE_DIR" ]]; then
+    echo -e "${RED}❌ Template dir missing: $TEMPLATE_DIR${NC}"
+    echo "   Run: brain sync (to refresh vault)"
+    exit 1
   fi
 
-  # Pick a reference project to copy from
-  REFERENCE="$HOME/code/strategix-servicedesk/.parent-automation"
-  if [[ ! -d "$REFERENCE" ]]; then
-    echo -e "${RED}❌ Reference project not found: $REFERENCE${NC}"
-    exit 1
+  ALREADY_INITIALIZED=false
+  if [[ -d "$PROJECT_DIR/.parent-automation" ]]; then
+    ALREADY_INITIALIZED=true
+    echo -e "${YELLOW}⚠️  .parent-automation already exists${NC}"
+    echo "   Will only update modules + sync snapshot (preserves your customizations)"
+    echo ""
   fi
 
   mkdir -p "$PROJECT_DIR/.parent-automation"
   mkdir -p "$PROJECT_DIR/.planning"
 
-  # Copy bootstrap and query modules
-  cp "$REFERENCE/query-brain.ts" "$PROJECT_DIR/.parent-automation/"
-  cp "$REFERENCE/new-project-bootstrap-v2.ts" "$PROJECT_DIR/.parent-automation/"
-  cp "$REFERENCE/tsconfig.json" "$PROJECT_DIR/.parent-automation/"
+  # Copy bootstrap and query modules from vault templates
+  # Use rsync with --update to only copy if newer
+  for file in query-brain.ts new-project-bootstrap-v2.ts tsconfig.json; do
+    SRC="$TEMPLATE_DIR/$file"
+    DST="$PROJECT_DIR/.parent-automation/$file"
+    if [[ "$SRC" -ef "$DST" ]]; then
+      echo "  ⏭  $file: skipping (source = destination)"
+      continue
+    fi
+    if [[ -f "$DST" ]] && cmp -s "$SRC" "$DST"; then
+      echo "  ✅ $file: already up to date"
+    else
+      cp "$SRC" "$DST"
+      echo "  ✅ $file: updated from vault"
+    fi
+  done
 
-  # Initialize decision log
-  touch "$PROJECT_DIR/.planning/bootstrap-decisions.jsonl"
+  # Initialize decision log if missing
+  if [[ ! -f "$PROJECT_DIR/.planning/bootstrap-decisions.jsonl" ]]; then
+    touch "$PROJECT_DIR/.planning/bootstrap-decisions.jsonl"
+    echo "  ✅ Created .planning/bootstrap-decisions.jsonl"
+  fi
 
-  # Run sync to populate snapshot
+  # Run sync to populate/refresh snapshot
+  echo ""
   bash "$VAULT_PATH/scripts/brain-sync.sh" "$PROJECT_DIR"
 
   echo ""
-  echo -e "${GREEN}✅ Initialized! Next steps:${NC}"
+  if [[ "$ALREADY_INITIALIZED" == "true" ]]; then
+    echo -e "${GREEN}✅ Updated! Next steps:${NC}"
+  else
+    echo -e "${GREEN}✅ Initialized! Next steps:${NC}"
+  fi
   echo "  brain bootstrap   # Run bootstrap workflow"
   echo "  brain status      # Check state"
 }

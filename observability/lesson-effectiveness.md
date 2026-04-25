@@ -1,29 +1,29 @@
 # Lesson Effectiveness Tracking
 
-**Last updated:** 2026-04-25T15:59:51.892Z
+**Last updated:** 2026-04-25T20:37:35.926Z
 
 ## Effectiveness Scores (sorted by effectiveness)
 
 
 ### L-018
-- **Effectiveness:** 50.0%
-- **Prevented incidents:** 1
+- **Effectiveness:** 66.7%
+- **Prevented incidents:** 2
 - **Violations:** 0
 - **Affected customers:** strategix
 - **First seen:** 2026-04-25T15:59:09.836Z
 
 
 ### L-021
-- **Effectiveness:** 50.0%
-- **Prevented incidents:** 1
+- **Effectiveness:** 66.7%
+- **Prevented incidents:** 2
 - **Violations:** 0
 - **Affected customers:** strategix
 - **First seen:** 2026-04-25T15:59:09.836Z
 
 
 ### L-020
-- **Effectiveness:** 50.0%
-- **Prevented incidents:** 1
+- **Effectiveness:** 66.7%
+- **Prevented incidents:** 2
 - **Violations:** 0
 - **Affected customers:** strategix
 - **First seen:** 2026-04-25T15:59:09.836Z
