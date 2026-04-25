@@ -1,6 +1,6 @@
 # Tier Selection Rules (Phase 7)
 
-**Last updated:** 2026-04-25T15:52:10.350Z
+**Last updated:** 2026-04-25T15:59:52.986Z
 
 ## Decision Tree
 
