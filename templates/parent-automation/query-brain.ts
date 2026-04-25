@@ -97,8 +97,12 @@ export async function queryBrain(
   }
 
   // Try local snapshot first (always available)
+  // Look in cache/query-responses/ first, then cache/ as fallback
   const cacheDir = path.join(SNAPSHOT_ROOT, "cache");
-  const cacheFile = path.join(cacheDir, `${queryId}.md`);
+  let cacheFile = path.join(cacheDir, "query-responses", `${queryId}.md`);
+  if (!fs.existsSync(cacheFile)) {
+    cacheFile = path.join(cacheDir, `${queryId}.md`);
+  }
 
   // Verify resolved path stays within cache directory (defense in depth)
   if (!path.resolve(cacheFile).startsWith(path.resolve(cacheDir))) {
@@ -303,8 +307,9 @@ export async function recordBootstrapDecision(decision: {
   // Continues running after bootstrap exits; failure does not block bootstrap.
   try {
     const { spawn } = await import("child_process");
+    const os = await import("os");
     const vaultRoot = process.env.AUTOMATION_BRAIN_PATH ||
-      path.join(require("os").homedir(), "vaults", "automation-brain");
+      path.join(os.homedir(), "vaults", "automation-brain");
     const daemonPath = path.join(vaultRoot, "observability", "phase-6-daemon.ts");
     if (fs.existsSync(daemonPath)) {
       const child = spawn("npx", ["ts-node", daemonPath], {
