@@ -701,17 +701,6 @@ EOF
     echo -e "  ${GREEN}✅${NC} No deployment (library/CLI/local-only)"
     ;;
 esac
-    ;;
-  custom|*)
-    cat > "$PROJECT_DIR/package.json" <<EOF
-{
-  "name": "$PROJECT_NAME",
-  "version": "0.0.1"
-}
-EOF
-    echo -e "  ${GREEN}✅${NC} Minimal scaffolding"
-    ;;
-esac
 
 # === Step 4: TypeScript config ===
 if [[ ! -f "$PROJECT_DIR/tsconfig.json" ]]; then
