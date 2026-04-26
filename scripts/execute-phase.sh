@@ -183,7 +183,7 @@ Constraints:
   if [[ -f "$PROJECT_DIR/.planning/budget-tier.txt" ]]; then
     local current_tier=$(cat "$PROJECT_DIR/.planning/budget-tier.txt")
     if [[ "$current_tier" == "BLACK" ]]; then
-      err "🛑 Budget tier BLACK — refusing to dispatch. Run: brain budget --reset"
+      err "🛑 Budget tier BLACK — refusing to dispatch. Run: ark budget --reset"
       return 1
     fi
     log "Current budget tier: $current_tier"
@@ -454,7 +454,7 @@ PYEOF
   if ! git diff --cached --quiet 2>/dev/null; then
     git commit -m "Phase $PHASE_NUM Task $task_num: $task_desc
 
-Auto-generated via brain deliver
+Auto-generated via ark deliver
 Files changed: $(echo "$applied_files" | wc -l | tr -d ' ')
 
 $(echo "$applied_files" | sed 's/^/  - /')" --quiet 2>/dev/null

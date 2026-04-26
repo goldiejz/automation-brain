@@ -9,7 +9,7 @@ This is the authoritative structure for both the vault and any project that uses
 ## Vault Structure (`~/vaults/ark/`)
 
 ```
-automation-brain/
+ark/
 ├── README.md                    Overview, getting started
 ├── STRUCTURE.md                 This file (canonical layout)
 ├── DEPLOYMENT_STATUS.md         Live deployment state

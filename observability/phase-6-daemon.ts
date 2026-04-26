@@ -249,7 +249,7 @@ async function updateBrainDocuments(
   patterns: CrossProjectPattern[],
   lessons: LessonEffectiveness[]
 ) {
-  const brainRoot = "/Users/jongoldberg/vaults/automation-brain";
+  const brainRoot = "/Users/jongoldberg/vaults/ark";
 
   // Update cross-customer-insights.md
   const insightsPath = path.join(

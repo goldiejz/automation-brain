@@ -138,7 +138,7 @@ export async function queryBrain(
     const allowedDomains = [
       "brain.strategix.internal",
       "brain.strategix.co.za",
-      "automation-brain.strategix.co.za",
+      "ark.strategix.co.za", "automation-brain.strategix.co.za",
     ];
     let apiUrl: URL;
     try {
@@ -309,7 +309,7 @@ export async function recordBootstrapDecision(decision: {
     const { spawn } = await import("child_process");
     const os = await import("os");
     const vaultRoot = process.env.ARK_HOME ||
-      path.join(os.homedir(), "vaults", "automation-brain");
+      path.join(os.homedir(), "vaults", "ark");
     const daemonPath = path.join(vaultRoot, "observability", "phase-6-daemon.ts");
     if (fs.existsSync(daemonPath)) {
       const child = spawn("npx", ["ts-node", daemonPath], {
@@ -398,7 +398,7 @@ export async function syncBrain(): Promise<{
   const os = await import("os");
   const vaultPath =
     process.env.ARK_HOME ||
-    path.join(os.homedir(), "vaults", "automation-brain");
+    path.join(os.homedir(), "vaults", "ark");
   const syncScript = path.join(vaultPath, "scripts", "brain-sync.sh");
 
   if (!fs.existsSync(syncScript)) {

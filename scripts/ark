@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# brain — Single command to activate the ark in any project
+# ark — Single command to activate the agentic OS in any project
 #
 # Usage (from any sub-project directory):
-#   brain                    # Default: sync + show status
+#   ark                    # Default: sync + show status
 #   ark sync               # Pull latest vault, refresh snapshot
 #   ark bootstrap          # Run new project bootstrap
 #   ark status             # Show current snapshot state
@@ -12,11 +12,11 @@
 #   ark init               # Initialize .parent-automation in current project
 #
 # Install once:
-#   ln -sf ~/vaults/automation-brain/scripts/ark /usr/local/bin/brain
+#   ln -sf ~/vaults/ark/scripts/ark /usr/local/bin/ark
 
 set -euo pipefail
 
-VAULT_PATH="${ARK_HOME:-${AUTOMATION_BRAIN_PATH:-$HOME/vaults/ark}}"
+VAULT_PATH="${ARK_HOME:-$HOME/vaults/ark}"
 COMMAND="${1:-default}"
 PROJECT_DIR="$(pwd)"
 
@@ -199,16 +199,16 @@ Commands:
 
   OBSERVABILITY:
     insights    Show cross-project insights from Phase 6
-    lessons     List all lessons in the brain
+    lessons     List all lessons in the ark
     phase-6     Manually trigger Phase 6 observability daemon
 
   help          Show this help
 
 Environment:
-  AUTOMATION_BRAIN_PATH  Path to vault (default: ~/vaults/automation-brain)
+  ARK_HOME  Path to vault (default: ~/vaults/ark)
 
 Examples:
-  cd ~/code/my-project && brain          # Sync and show status
+  cd ~/code/my-project && ark          # Sync and show status
   ark bootstrap                         # Run bootstrap
   ark insights                          # See cross-project patterns
 EOF

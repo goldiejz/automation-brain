@@ -59,7 +59,7 @@ export CODEX_API_KEY=...
 ```bash
 # From DEPLOYMENT_GUIDE.md:
 sudo crontab -e
-# Add: 0 9 * * 1 cd /Users/jongoldberg/vaults/automation-brain && npx ts-node observability/phase-6-daemon.ts >> logs/phase-6.log 2>&1
+# Add: 0 9 * * 1 cd /Users/jongoldberg/vaults/ark && npx ts-node observability/phase-6-daemon.ts >> logs/phase-6.log 2>&1
 ```
 
 ### 4. **Onboard First Customer** (Next Week)
@@ -217,7 +217,7 @@ npx ts-node observability/phase-6-daemon-extended.ts
 
 **Snapshot corrupted in one repo?**
 - Other repos unaffected (3 independent snapshots)
-- Restore from automation-brain vault: `cp ~/vaults/ark/cache/query-responses/* .parent-automation/ark-snapshot/cache/`
+- Restore from ark vault: `cp ~/vaults/ark/cache/query-responses/* .parent-automation/ark-snapshot/cache/`
 
 **Claude API fails during bootstrap?**
 - If using cached response: works instantly

@@ -1,7 +1,7 @@
 {
-  "name": "automation-brain",
+  "name": "ark",
   "version": "1.0.0",
-  "description": "Obsidian brain for multi-project automation learning",
+  "description": "Ark \u2014 agentic OS for multi-project automation learning",
   "scripts": {
     "phase-6": "npx ts-node observability/phase-6-daemon.ts",
     "phase-6-ext": "npx ts-node observability/phase-6-daemon-extended.ts",

@@ -15,7 +15,7 @@ A centralized knowledge vault that:
 ## Structure
 
 ```
-automation-brain/
+ark/
 ├── 00-Index.md              ← Navigation hub and entry point
 ├── lessons/                 ← Ingested lessons from all projects (L-NNN format)
 │   ├── strategix-L-001.md   (e.g., "RBAC lockout prevention")
@@ -105,7 +105,7 @@ See `DEPLOYMENT_STATUS.md` for live deployment details.
    ```
 
 2. **Open in Obsidian:**
-   - Open Obsidian → "Open vault folder" → select `automation-brain`
+   - Open Obsidian → "Open vault folder" → select `ark`
    - Start at `00-Index.md` for navigation
 
 3. **View lessons:**

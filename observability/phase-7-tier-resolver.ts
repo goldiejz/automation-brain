@@ -30,7 +30,7 @@ interface TaskProfile {
   hasPastExamples: number; // How many past executions?
 }
 
-const BRAIN_ROOT = "/Users/jongoldberg/vaults/automation-brain";
+const BRAIN_ROOT = "/Users/jongoldberg/vaults/ark";
 
 function loadCacheIndex(): Map<string, number> {
   const cacheIndex = new Map<string, number>();

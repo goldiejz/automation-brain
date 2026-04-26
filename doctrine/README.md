@@ -25,7 +25,7 @@ Universal principles and standards that apply to all projects (Strategix and all
   - D-NNN = Design decision or drift (findings)
   - P-NNN = Pattern (cross-project meta-insight)
   - Phase = Bootstrap phase (P1, P2, P3) or implementation phase
-  - Brain = This Obsidian vault (automation-brain)
+  - Brain = This Obsidian vault (ark)
 
 ## Authority Hierarchy
 

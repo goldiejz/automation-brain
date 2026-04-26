@@ -18,7 +18,7 @@
 
 ## Part 1: Environment Setup (30 min)
 
-### Create `.env.example` in automation-brain root:
+### Create `.env.example` in ark root:
 
 ```bash
 # Anthropic (Claude) API key
@@ -101,11 +101,11 @@ done
 # As root or with sudo:
 cat > /etc/cron.d/phase-6-observability << 'EOF'
 # Run Phase 6 observability daemon every Monday at 9am
-0 9 * * 1 cd /Users/jongoldberg/vaults/automation-brain && \
+0 9 * * 1 cd /Users/jongoldberg/vaults/ark && \
   npx ts-node observability/phase-6-daemon.ts >> logs/phase-6.log 2>&1
 
 # Run model registry update as part of Phase 6
-0 9 * * 1 cd /Users/jongoldberg/vaults/automation-brain && \
+0 9 * * 1 cd /Users/jongoldberg/vaults/ark && \
   npx ts-node observability/phase-6-daemon-extended.ts >> logs/phase-6-models.log 2>&1
 EOF
 
