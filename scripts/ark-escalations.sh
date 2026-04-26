@@ -202,7 +202,8 @@ _ark_esc_cmd_list() {
   local file
   file="$(_ark_esc_file)"
   if [[ ! -f "$file" ]]; then
-    echo "No escalations queue yet. (File: $file)"
+    echo "✅ No pending escalations — Ark hasn't surfaced any true blockers."
+    echo "   (Queue file is created lazily on first blocker; nothing to review.)"
     return 0
   fi
 
