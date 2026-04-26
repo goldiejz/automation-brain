@@ -3,6 +3,9 @@ project_type: ops-intelligence
 source_project: strategix-ioc
 template_version: 1.0
 created: 2026-04-25
+default_stack: nextjs-on-workers
+default_deploy: cloudflare-workers
+keywords: ops intelligence, ops dashboard, msp dashboard, monitoring, monitoring dashboard, observability, n-central, halopsa, kpi, kpis, sla dashboard, technician workload, incident dashboard, client health, operations dashboard, executive dashboard, status board, network monitoring
 ---
 
 # Operations Intelligence (OpsInt / IOC) Project Bootstrap Template

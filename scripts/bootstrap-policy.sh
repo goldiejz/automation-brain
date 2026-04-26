@@ -71,7 +71,11 @@ _bp_lower() {
 }
 
 # === Read template frontmatter `keywords:` line ===
-# Echoes a space-separated list of lowercased keyword tokens.
+# Echoes a newline-separated list of lowercased keyword phrases (multi-word
+# preserved). Callers should iterate via `while IFS= read -r kw; do ...; done`
+# so phrases like "service desk" or "rev ops" stay intact. (Older shell-loops
+# that did `for kw in $kw_line` would word-split phrases — fixed in Plan 04-02
+# now that frontmatter contains real multi-word phrases.)
 _bp_read_template_keywords() {
   local file="$1"
   [[ ! -f "$file" ]] && return 0
@@ -92,13 +96,19 @@ _bp_read_template_keywords() {
         if (substr(val,1,1) == "\"" && substr(val,length(val),1) == "\"") {
           val = substr(val, 2, length(val)-2)
         }
-        # Replace commas with spaces
-        gsub(/,/, " ", val)
-        # Collapse runs of whitespace
-        gsub(/[[:space:]]+/, " ", val)
-        sub(/^[[:space:]]+/, "", val)
-        sub(/[[:space:]]+$/, "", val)
-        print tolower(val)
+        # Lowercase entire value, then split on commas — emit one phrase per
+        # line so multi-word keywords ("service desk") stay intact downstream.
+        val = tolower(val)
+        n = split(val, parts, ",")
+        for (i = 1; i <= n; i++) {
+          p = parts[i]
+          # Trim leading/trailing whitespace
+          sub(/^[[:space:]]+/, "", p)
+          sub(/[[:space:]]+$/, "", p)
+          # Collapse internal whitespace runs to a single space
+          gsub(/[[:space:]]+/, " ", p)
+          if (length(p) > 0) print p
+        }
         done = 1
         exit
       }
@@ -163,16 +173,25 @@ bootstrap_infer_type() {
     fi
     total=0
     matched=0
-    for kw in $kw_line; do
+    # Iterate phrases (multi-word safe). Reader emits one phrase per line.
+    while IFS= read -r kw; do
+      [[ -z "$kw" ]] && continue
       total=$((total + 1))
       case "$desc_lc" in
         *"$kw"*) matched=$((matched + 1)) ;;
       esac
-    done
+    done <<< "$kw_line"
     if [[ "$total" -eq 0 ]]; then
       score=0
     else
-      score=$(( matched * 100 / total ))
+      # Scoring: 20 points per matched phrase, capped at 100. This rewards
+      # absolute signal over percentage-of-keywords, so a rich (20-phrase)
+      # template is not penalized vs a sparse (5-phrase) one. 5 hits = 100%.
+      # (Plan 04-02 deviation: the previous percentage-of-total formula
+      # penalized the new richer keyword sets and pushed real-vault scores
+      # below the confidence threshold despite obvious correct classification.)
+      score=$(( matched * 20 ))
+      if [[ "$score" -gt 100 ]]; then score=100; fi
     fi
     if [[ "$score" -gt "$best_score" ]]; then
       best_score="$score"

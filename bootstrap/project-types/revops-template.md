@@ -3,6 +3,9 @@ project_type: revops
 source_project: strategix-revops
 template_version: 1.0
 created: 2026-04-25
+default_stack: vite-react-hono
+default_deploy: cloudflare-workers
+keywords: revops, rev ops, revenue operations, crm, quotes, quoting, pipeline, opportunity, opportunities, deal, deals, commission, commissions, billing, invoicing, margin, approval, approvals, sales pipeline, account management, contract, contracts, renewal, renewals
 ---
 
 # RevOps (Commercial Operations) Project Bootstrap Template

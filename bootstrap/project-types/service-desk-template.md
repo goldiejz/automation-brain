@@ -3,6 +3,9 @@ project_type: service-desk
 source_project: strategix-servicedesk
 template_version: 1.0
 created: 2026-04-25
+default_stack: vite-react-hono
+default_deploy: cloudflare-workers
+keywords: service desk, helpdesk, help desk, ticket, tickets, ticketing, sla, slas, itil, incident, incidents, problem management, change management, msp, managed service, customer support, technician, engineer workload, timesheet, sign-off, helpdesk platform
 ---
 
 # Service Desk Project Bootstrap Template
