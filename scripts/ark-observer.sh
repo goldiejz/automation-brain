@@ -125,6 +125,42 @@ init_patterns() {
       "lesson_after_n": 5,
       "auto_fix": "auto-sync",
       "description": "Project snapshot stale — auto-sync trigger candidate"
+    },
+    {
+      "id": "gsd-multi-plan-missed",
+      "regex": "(0 tasks to execute|No tasks found).*phases/[0-9]",
+      "category": "logic-bug",
+      "severity": "critical",
+      "lesson_after_n": 1,
+      "auto_fix": "log-only",
+      "description": "Ark dispatched empty phase while GSD plan files exist — multi-plan blindness"
+    },
+    {
+      "id": "gsd-phase-dir-collision",
+      "regex": "phases/[0-9]+(\\.[0-9]+)?-NEW|sibling.*phase-",
+      "category": "logic-bug",
+      "severity": "high",
+      "lesson_after_n": 1,
+      "auto_fix": "log-only",
+      "description": "Ark created sibling/placeholder phase dir on a GSD project — shape detection regressed"
+    },
+    {
+      "id": "empty-plan-dispatched",
+      "regex": "team dispatch.*0 tasks|architect.*no plan",
+      "category": "logic-bug",
+      "severity": "high",
+      "lesson_after_n": 1,
+      "auto_fix": "log-only",
+      "description": "Team role dispatched with zero actionable tasks — caller skipped task validation"
+    },
+    {
+      "id": "phase-dir-creation-without-tasks",
+      "regex": "Created.*\\.planning/phases?/.*(NEW|placeholder)|wrote PLAN\\.md.*0 tasks",
+      "category": "logic-bug",
+      "severity": "high",
+      "lesson_after_n": 1,
+      "auto_fix": "log-only",
+      "description": "Ark wrote a phase dir without finding/creating real tasks — bypass of plan validation"
     }
   ]
 }

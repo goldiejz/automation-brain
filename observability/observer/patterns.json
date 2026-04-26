@@ -7,7 +7,7 @@
       "severity": "high",
       "lesson_after_n": 3,
       "auto_fix": "tier-down",
-      "description": "Codex CLI hit quota \u2014 auto-degrade to next tier"
+      "description": "Codex CLI hit quota — auto-degrade to next tier"
     },
     {
       "id": "quota-exhausted-gemini",
@@ -16,7 +16,7 @@
       "severity": "high",
       "lesson_after_n": 3,
       "auto_fix": "tier-down",
-      "description": "Gemini CLI hit quota \u2014 auto-degrade to next tier"
+      "description": "Gemini CLI hit quota — auto-degrade to next tier"
     },
     {
       "id": "dispatch-no-prompt",
@@ -25,7 +25,7 @@
       "severity": "critical",
       "lesson_after_n": 1,
       "auto_fix": "log-only",
-      "description": "Dispatch failure \u2014 prompt not reaching CLI (stdin issue)"
+      "description": "Dispatch failure — prompt not reaching CLI (stdin issue)"
     },
     {
       "id": "phase-no-tasks",
@@ -34,7 +34,7 @@
       "severity": "medium",
       "lesson_after_n": 2,
       "auto_fix": "log-only",
-      "description": "Phase has no tasks \u2014 should auto-skip rather than fail"
+      "description": "Phase has no tasks — should auto-skip rather than fail"
     },
     {
       "id": "broken-symlink",
@@ -43,7 +43,7 @@
       "severity": "high",
       "lesson_after_n": 1,
       "auto_fix": "log-only",
-      "description": "Broken symlink or missing module \u2014 points to file ops issue"
+      "description": "Broken symlink or missing module — points to file ops issue"
     },
     {
       "id": "permission-denied",
@@ -52,7 +52,7 @@
       "severity": "high",
       "lesson_after_n": 2,
       "auto_fix": "log-only",
-      "description": "Permission issues \u2014 likely chmod or sandbox-related"
+      "description": "Permission issues — likely chmod or sandbox-related"
     },
     {
       "id": "git-push-fail",
@@ -61,7 +61,7 @@
       "severity": "medium",
       "lesson_after_n": 2,
       "auto_fix": "log-only",
-      "description": "Git push failing \u2014 branch protection or stale local"
+      "description": "Git push failing — branch protection or stale local"
     },
     {
       "id": "ts-error",
@@ -70,7 +70,7 @@
       "severity": "medium",
       "lesson_after_n": 5,
       "auto_fix": "log-only",
-      "description": "Recurring TypeScript errors \u2014 may indicate template defect"
+      "description": "Recurring TypeScript errors — may indicate template defect"
     },
     {
       "id": "false-positive-block",
@@ -79,7 +79,7 @@
       "severity": "critical",
       "lesson_after_n": 1,
       "auto_fix": "log-only",
-      "description": "PM rejected work that wasn't reviewed \u2014 verdict logic gap"
+      "description": "PM rejected work that wasn't reviewed — verdict logic gap"
     },
     {
       "id": "vault-stale",
@@ -88,34 +88,43 @@
       "severity": "low",
       "lesson_after_n": 5,
       "auto_fix": "auto-sync",
-      "description": "Project snapshot stale \u2014 auto-sync trigger candidate"
-    },
-    {
-      "id": "gsd-phase-dir-collision",
-      "regex": "writing empty plans|sibling directory|phase-[0-9]+\\.[0-9]+|no-op team run",
-      "category": "logic-bug",
-      "severity": "high",
-      "lesson_after_n": 1,
-      "auto_fix": "respect-gsd-shape",
-      "description": "Ark deliver creating phase dirs that conflict with GSD's existing shape (decimal phases, slugged dirs)"
-    },
-    {
-      "id": "empty-plan-dispatched",
-      "regex": "PLAN\\.md.*0 tasks|no actionable tasks|task_count=0",
-      "category": "workflow",
-      "severity": "medium",
-      "lesson_after_n": 2,
-      "auto_fix": "skip-empty-phase",
-      "description": "Ark dispatched team for a phase with no actionable tasks \u2014 should auto-skip"
+      "description": "Project snapshot stale — auto-sync trigger candidate"
     },
     {
       "id": "gsd-multi-plan-missed",
-      "regex": "phases/[0-9]+\\.[0-9]+-.*PLAN\\.md|0 tasks to execute|0 actionable tasks across",
+      "regex": "(0 tasks to execute|No tasks found).*phases/[0-9]",
+      "category": "logic-bug",
+      "severity": "critical",
+      "lesson_after_n": 1,
+      "auto_fix": "log-only",
+      "description": "Ark dispatched empty phase while GSD plan files exist — multi-plan blindness"
+    },
+    {
+      "id": "gsd-phase-dir-collision",
+      "regex": "phases/[0-9]+(\\.[0-9]+)?-NEW|sibling.*phase-",
       "category": "logic-bug",
       "severity": "high",
       "lesson_after_n": 1,
-      "auto_fix": "use-find-plan-files",
-      "description": "Ark not detecting GSD multi-plan-per-phase shape (NN.X-NN-PLAN.md)"
+      "auto_fix": "log-only",
+      "description": "Ark created sibling/placeholder phase dir on a GSD project — shape detection regressed"
+    },
+    {
+      "id": "empty-plan-dispatched",
+      "regex": "team dispatch.*0 tasks|architect.*no plan",
+      "category": "logic-bug",
+      "severity": "high",
+      "lesson_after_n": 1,
+      "auto_fix": "log-only",
+      "description": "Team role dispatched with zero actionable tasks — caller skipped task validation"
+    },
+    {
+      "id": "phase-dir-creation-without-tasks",
+      "regex": "Created.*\\.planning/phases?/.*(NEW|placeholder)|wrote PLAN\\.md.*0 tasks",
+      "category": "logic-bug",
+      "severity": "high",
+      "lesson_after_n": 1,
+      "auto_fix": "log-only",
+      "description": "Ark wrote a phase dir without finding/creating real tasks — bypass of plan validation"
     }
   ]
 }
