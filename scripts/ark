@@ -190,7 +190,8 @@ Commands:
     lifecycle   Project lifecycle: status|archive|maintain|sunset|revive
 
   GOVERNANCE:
-    budget      Token usage tracking and budget caps
+    budget       Token usage tracking and budget caps
+    escalations  List/show/resolve queued blockers (~/vaults/ark/ESCALATIONS.md)
     portfolio   CEO dashboard across all brain-integrated projects
     report      Stakeholder reports (--for customer|investor|team|self)
 
@@ -243,6 +244,7 @@ case "$COMMAND" in
   deliver)    shift; bash "$VAULT_PATH/scripts/ark-deliver.sh" "$@" ;;
   promote)    shift; bash "$VAULT_PATH/scripts/ark-promote.sh" "$@" ;;
   budget)     shift; bash "$VAULT_PATH/scripts/ark-budget.sh" "$@" ;;
+  escalations) shift; bash "$VAULT_PATH/scripts/ark-escalations.sh" "$@" ;;
   portfolio)  shift; bash "$VAULT_PATH/scripts/ark-portfolio.sh" "$@" ;;
   secrets)    shift; bash "$VAULT_PATH/scripts/ark-secrets.sh" "$@" ;;
   lifecycle)  shift; bash "$VAULT_PATH/scripts/ark-lifecycle.sh" "$@" ;;
