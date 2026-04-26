@@ -131,6 +131,25 @@ policy_config_get() {
     fi
   fi
 
+  # 2.5. Customer-level policy.yml (NEW in Phase 4).
+  # Customer is resolved from $ARK_CUSTOMER env, else from project policy's bootstrap.customer.
+  local _customer=""
+  if [[ -n "${ARK_CUSTOMER:-}" ]]; then
+    _customer="$ARK_CUSTOMER"
+  elif [[ -n "${PROJECT_DIR:-}" ]] && [[ -f "$PROJECT_DIR/.planning/policy.yml" ]]; then
+    _customer=$(_pc_read_yaml_key "$PROJECT_DIR/.planning/policy.yml" "bootstrap.customer")
+  fi
+  if [[ -n "$_customer" ]]; then
+    local _customer_file="${ARK_HOME:-$HOME/vaults/ark}/customers/$_customer/policy.yml"
+    if [[ -f "$_customer_file" ]]; then
+      val=$(_pc_read_yaml_key "$_customer_file" "$key")
+      if [[ -n "$val" ]]; then
+        echo "$val"
+        return 0
+      fi
+    fi
+  fi
+
   # 3. Vault-level policy.yml
   local vault_path="${ARK_HOME:-$HOME/vaults/ark}"
   if [[ -f "$vault_path/policy.yml" ]]; then
@@ -165,6 +184,22 @@ policy_config_has() {
     local val
     val=$(_pc_read_yaml_key "$PROJECT_DIR/.planning/policy.yml" "$key")
     [[ -n "$val" ]] && return 0
+  fi
+
+  # Customer-layer mirror (Phase 4).
+  local _customer=""
+  if [[ -n "${ARK_CUSTOMER:-}" ]]; then
+    _customer="$ARK_CUSTOMER"
+  elif [[ -n "${PROJECT_DIR:-}" ]] && [[ -f "$PROJECT_DIR/.planning/policy.yml" ]]; then
+    _customer=$(_pc_read_yaml_key "$PROJECT_DIR/.planning/policy.yml" "bootstrap.customer")
+  fi
+  if [[ -n "$_customer" ]]; then
+    local _customer_file="${ARK_HOME:-$HOME/vaults/ark}/customers/$_customer/policy.yml"
+    if [[ -f "$_customer_file" ]]; then
+      local val
+      val=$(_pc_read_yaml_key "$_customer_file" "$key")
+      [[ -n "$val" ]] && return 0
+    fi
   fi
 
   local vault_path="${ARK_HOME:-$HOME/vaults/ark}"
@@ -207,7 +242,19 @@ policy_config_dump() {
       elif [[ -n "${PROJECT_DIR:-}" ]] && [[ -f "$PROJECT_DIR/.planning/policy.yml" ]] && [[ -n "$(_pc_read_yaml_key "$PROJECT_DIR/.planning/policy.yml" "$key")" ]]; then
         source="project"
       else
-        source="vault"
+        # Customer-layer detection (Phase 4).
+        local _dump_customer=""
+        if [[ -n "${ARK_CUSTOMER:-}" ]]; then
+          _dump_customer="$ARK_CUSTOMER"
+        elif [[ -n "${PROJECT_DIR:-}" ]] && [[ -f "$PROJECT_DIR/.planning/policy.yml" ]]; then
+          _dump_customer=$(_pc_read_yaml_key "$PROJECT_DIR/.planning/policy.yml" "bootstrap.customer")
+        fi
+        local _dump_cf="${ARK_HOME:-$HOME/vaults/ark}/customers/$_dump_customer/policy.yml"
+        if [[ -n "$_dump_customer" ]] && [[ -f "$_dump_cf" ]] && [[ -n "$(_pc_read_yaml_key "$_dump_cf" "$key")" ]]; then
+          source="customer"
+        else
+          source="vault"
+        fi
       fi
     else
       source="default"
@@ -302,6 +349,27 @@ EOF
   else
     pass=$((pass + 1)); echo "  ✅ no Bash 4-only constructs in main code"
   fi
+
+  # Test 11: customer overrides vault but not project (NEW Phase 4).
+  mkdir -p "$TMP_VAULT/customers/acme"
+  cat > "$TMP_VAULT/customers/acme/policy.yml" <<'EOF'
+budget.monthly_escalate_pct: 85
+custom.test_key: customer_value
+EOF
+
+  assert_eq "customer_value" \
+    "$(ARK_HOME="$TMP_VAULT" PROJECT_DIR="$TMP_PROJ" ARK_CUSTOMER=acme policy_config_get custom.test_key default_value)" \
+    "customer overrides vault for unique key (env-resolved customer)"
+
+  assert_eq "80" \
+    "$(ARK_HOME="$TMP_VAULT" PROJECT_DIR="$TMP_PROJ" ARK_CUSTOMER=acme policy_config_get budget.monthly_escalate_pct 95)" \
+    "project still overrides customer"
+
+  # Test 12: customer resolved from project's bootstrap.customer (no env).
+  echo "bootstrap.customer: acme" >> "$TMP_PROJ/.planning/policy.yml"
+  assert_eq "customer_value" \
+    "$(ARK_HOME="$TMP_VAULT" PROJECT_DIR="$TMP_PROJ" policy_config_get custom.test_key default_value)" \
+    "customer resolved from project policy bootstrap.customer"
 
   echo ""
   if [[ "$fail" -eq 0 ]]; then
