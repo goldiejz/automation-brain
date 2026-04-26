@@ -124,15 +124,21 @@ gather_state() {
   local codex_status="$(get_cached_or_probe codex probe_codex_quota)"
   local gemini_status="$(get_cached_or_probe gemini probe_gemini_quota)"
 
-  local haiku_available="false"
-  [[ -n "${ANTHROPIC_API_KEY:-}" ]] && haiku_available="true"
-
   # Determine primary dispatcher (priority order):
-  # 1. claude-code-session (always available + most capable when in CC)
-  # 2. codex (free if available)
-  # 3. gemini (free if available)
-  # 4. haiku-api (paid, ~$0.0003/task)
-  # 5. regex-fallback (always works, no AI)
+  # 1. claude-code-session (always present + most capable when in CC — IS Claude)
+  # 2. codex (free CLI if available)
+  # 3. gemini (free CLI if available)
+  # 4. haiku-api (only if explicitly running headless with API key)
+  # 5. regex-fallback (last resort)
+  #
+  # NOTE: haiku-api is only useful when running headless (no Claude Code session).
+  # When in Claude Code, the session itself IS the AI — there's no point routing
+  # to a separate API instance of the same model family.
+  local haiku_available="false"
+  if [[ "$in_claude_code" != "true" ]] && [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
+    haiku_available="true"
+  fi
+
   local primary="regex-fallback"
   if [[ "$in_claude_code" == "true" ]]; then
     primary="claude-code-session"
@@ -206,14 +212,19 @@ print(json.dumps({
       }
 
       cc_status="❌ unavailable"
-      [[ "$in_claude_code" == "true" ]] && cc_status="✅ active"
+      [[ "$in_claude_code" == "true" ]] && cc_status="✅ active (Claude — IS the engine)"
       printf "    %-22s %s\n" "claude-code-session" "$cc_status"
       printf "    %-22s %s\n" "codex" "$(format_status "$codex_status")"
       printf "    %-22s %s\n" "gemini" "$(format_status "$gemini_status")"
 
-      haiku_label="⚠️  no API key"
-      [[ "$haiku_available" == "true" ]] && haiku_label="✅ ANTHROPIC_API_KEY set"
-      printf "    %-22s %s\n" "haiku-api" "$haiku_label"
+      # Only show haiku-api when running headless (in CC, redundant)
+      if [[ "$in_claude_code" != "true" ]]; then
+        haiku_label="⚠️  no API key"
+        [[ "$haiku_available" == "true" ]] && haiku_label="✅ ANTHROPIC_API_KEY set"
+        printf "    %-22s %s\n" "haiku-api" "$haiku_label"
+      else
+        printf "    %-22s %s\n" "haiku-api" "↪️  redundant in Claude Code (use session)"
+      fi
       printf "    %-22s %s\n" "regex-fallback" "✅ always available"
       echo ""
       echo "  ➜ Primary dispatcher: $primary"
