@@ -26,6 +26,13 @@
 set -uo pipefail
 
 VAULT_PATH="${ARK_HOME:-$HOME/vaults/ark}"
+
+# === Source policy + escalations libs (graceful degradation if missing) ===
+# shellcheck disable=SC1091
+if [[ -f "$VAULT_PATH/scripts/ark-policy.sh" ]]; then source "$VAULT_PATH/scripts/ark-policy.sh"; fi
+# shellcheck disable=SC1091
+if [[ -f "$VAULT_PATH/scripts/ark-escalations.sh" ]]; then source "$VAULT_PATH/scripts/ark-escalations.sh"; fi
+
 PROJECT_DIR="$(pwd)"
 MODE="full"
 FROM_SPEC=""
@@ -172,6 +179,41 @@ normalize_phase_num() { gsd_normalize_phase_num "$@"; }
 resolve_phase_dir()   { gsd_resolve_phase_dir "$@"; }
 find_plan_files()     { gsd_find_plan_files "$@"; }
 
+# === Helper: route zero-task phases via policy (Phase 2 Plan 02-05) ===
+# Args: phase_num phase_dir plan_count
+# Always returns 0 — the pipeline never halts on zero-task phases.
+_deliver_handle_zero_tasks() {
+  local _phase="$1" _phase_dir="$2" _plan_count_raw="$3"
+  # Sanitize plan_count: pre-existing upstream code can yield "0\n0" from chained
+  # `grep -c ... || echo 0` pipelines on bash 3 (macOS). Reduce to a single integer.
+  local _plan_count
+  # Take only the first line, then extract leading integer.
+  _plan_count=$(printf '%s\n' "$_plan_count_raw" | head -n1 | tr -dc '0-9')
+  [[ -z "$_plan_count" ]] && _plan_count=0
+  # Strip any leading zeros to keep JSON numeric ("0" stays "0").
+  _plan_count=$(printf '%d' "$_plan_count" 2>/dev/null || echo 0)
+  local _decision="SKIP_LOGGED"
+  if type policy_zero_tasks >/dev/null 2>&1; then
+    _decision=$(policy_zero_tasks "$_phase_dir" "$_plan_count")
+  fi
+  case "$_decision" in
+    ESCALATE_AMBIGUOUS)
+      if type ark_escalate >/dev/null 2>&1; then
+        ark_escalate architectural-ambiguity \
+          "Phase $_phase: zero actionable tasks" \
+          "phase_dir: $_phase_dir | plan_count: $_plan_count" >/dev/null 2>&1 || true
+      fi
+      log WARN "Phase $_phase: zero tasks → escalated (architectural-ambiguity)"
+      update_state "$_phase" "escalated (no tasks)"
+      ;;
+    *)
+      log INFO "Phase $_phase: zero tasks → SKIP_LOGGED (audit-logged via policy_zero_tasks)"
+      update_state "$_phase" "complete (no tasks)"
+      ;;
+  esac
+  return 0
+}
+
 # === Run a single phase ===
 run_phase() {
   local phase_num="$1"
@@ -203,8 +245,7 @@ run_phase() {
   if [[ $plan_count -eq 0 ]]; then
     # No plans exist
     if [[ $existed -eq 0 ]]; then
-      log WARN "Phase dir exists but no *-PLAN.md files — likely WIP or non-plan phase"
-      log WARN "Refusing to write to: $phase_dir"
+      _deliver_handle_zero_tasks "$phase_num" "$phase_dir" 0
       return 0
     fi
     log INFO "Planning phase $phase_num..."
@@ -219,7 +260,7 @@ run_phase() {
   # NEW: Validate plans have actual tasks before dispatching
   local total_tasks=0
   if [[ $plan_count -gt 0 ]]; then
-    while IFS= read -r pf; do
+    while IFS= read -r pf; do  # AOS: intentional gate (loop iterator over heredoc, not user-input prompt)
       [[ -z "$pf" ]] && continue
       local c
       c=$(grep -cE '^[[:space:]]*-[[:space:]]+\[[[:space:]xX]\]' "$pf" 2>/dev/null || echo 0)
@@ -229,8 +270,7 @@ run_phase() {
   fi
 
   if [[ $total_tasks -eq 0 ]]; then
-    log WARN "Phase $phase_num has 0 actionable tasks across all plans — auto-skipping"
-    update_state "$phase_num" "complete (no tasks)"
+    _deliver_handle_zero_tasks "$phase_num" "$phase_dir" "$plan_count"
     return 0
   fi
 
@@ -239,8 +279,7 @@ run_phase() {
     local task_count=$total_tasks
     task_count=$(grep -cE "^[[:space:]]*-[[:space:]]+\[[[:space:]]\]" "$phase_dir/PLAN.md" 2>/dev/null || echo 0)
     if [[ $task_count -eq 0 ]]; then
-      log WARN "Phase $phase_num has no actionable tasks in PLAN.md — marking complete and moving on"
-      update_state "$phase_num" "complete (no tasks)"
+      _deliver_handle_zero_tasks "$phase_num" "$phase_dir" "${plan_count:-1}"
       return 0
     fi
     log INFO "Phase $phase_num plan: $task_count tasks to execute"
