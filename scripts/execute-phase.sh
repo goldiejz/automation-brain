@@ -21,6 +21,16 @@ PHASE_NUM="${2:?phase number required}"
 
 VAULT_PATH="${ARK_HOME:-$HOME/vaults/ark}"
 
+# === AOS policy lib + escalations (graceful degradation if missing) ===
+if [[ -f "$VAULT_PATH/scripts/ark-policy.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "$VAULT_PATH/scripts/ark-policy.sh"
+fi
+if [[ -f "$VAULT_PATH/scripts/ark-escalations.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "$VAULT_PATH/scripts/ark-escalations.sh"
+fi
+
 # Resolve phase dir respecting GSD layout (phases/NN-slug/) or legacy (phase-N/)
 source "$VAULT_PATH/scripts/lib/gsd-shape.sh"
 PHASE_DIR=$(gsd_resolve_phase_dir "$PHASE_NUM" "$PROJECT_DIR")
@@ -188,11 +198,40 @@ Constraints:
   fi
 
   # === Pre-flight: check budget tier before dispatching ===
+  local current_tier="GREEN"
   if [[ -f "$PROJECT_DIR/.planning/budget-tier.txt" ]]; then
-    local current_tier=$(cat "$PROJECT_DIR/.planning/budget-tier.txt")
+    current_tier=$(cat "$PROJECT_DIR/.planning/budget-tier.txt")
     if [[ "$current_tier" == "BLACK" ]]; then
-      err "🛑 Budget tier BLACK — refusing to dispatch. Run: ark budget --reset"
-      return 1
+      # AOS: delegate to policy. AUTO_RESET → recompute and proceed; ESCALATE → fail fast (queued).
+      if type policy_budget_decision >/dev/null 2>&1 && [[ -f "$PROJECT_DIR/.planning/budget.json" ]]; then
+        local _bd
+        _bd=$(BUDGET_FILE="$PROJECT_DIR/.planning/budget.json" python3 - <<'PY'
+import json, os
+b = json.load(open(os.environ['BUDGET_FILE']))
+print(b.get('phase_used', 0), b.get('phase_cap_tokens', 50000), b.get('monthly_used', 0), b.get('monthly_cap_tokens', 1000000))
+PY
+)
+        # shellcheck disable=SC2086
+        local decision; decision=$(policy_budget_decision $_bd)
+        case "$decision" in
+          AUTO_RESET)
+            log "Policy auto-reset on BLACK (monthly headroom available)"
+            bash "$VAULT_PATH/scripts/ark-budget.sh" --reset >/dev/null 2>&1 || true
+            current_tier=$(cat "$PROJECT_DIR/.planning/budget-tier.txt" 2>/dev/null || echo GREEN)
+            ;;
+          ESCALATE_MONTHLY_CAP)
+            err "Monthly budget cap reached — escalation queued (no manual reset required)"
+            return 1
+            ;;
+          PROCEED)
+            log "Policy: PROCEED on BLACK (under monthly cap)"
+            ;;
+        esac
+      else
+        # Graceful degradation: no policy lib loaded — keep historic refusal but no interactive prompt.
+        err "Budget BLACK — refusing to dispatch (policy lib not loaded; see ark budget)"
+        return 1
+      fi
     fi
     log "Current budget tier: $current_tier"
   fi
