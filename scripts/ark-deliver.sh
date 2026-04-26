@@ -164,21 +164,75 @@ artifact_has_real_content() {
   [[ $(wc -l < "$artifact" 2>/dev/null | tr -d ' ') -gt 3 ]]
 }
 
-# === Resolve phase directory: respect GSD's existing shape ===
-# GSD supports decimal phases (1.5), slugged dirs (phase-1-core-slice),
-# and lives at .planning/<phase-dir>/. Ark must NOT create a sibling
-# directory if a GSD phase already exists for that number.
+# === Detect if project uses GSD's layout (.planning/phases/NN-slug/) ===
+is_gsd_project() {
+  [[ -d "$PROJECT_DIR/.planning/phases" ]] && \
+    ls -1d "$PROJECT_DIR/.planning/phases/"[0-9]* 2>/dev/null | head -1 | grep -q .
+}
+
+# === Normalize a phase number to GSD's zero-padded form ===
+# Input: "1" or "1.5" → Output: "01" or "01.5"
+normalize_phase_num() {
+  local n="$1"
+  # Split on dot using parameter expansion (more reliable than =~ regex with capture)
+  local int_part="${n%%.*}"
+  local dec_part=""
+  if [[ "$n" == *.* ]]; then
+    dec_part=".${n#*.}"
+  fi
+  # Validate int part is numeric
+  if [[ ! "$int_part" =~ ^[0-9]+$ ]]; then
+    echo "$n"
+    return
+  fi
+  printf "%02d%s" "$int_part" "$dec_part"
+}
+
+# === Resolve phase directory: respect GSD's REAL shape ===
+# GSD layout (verified against strategix-servicedesk):
+#   .planning/phases/00-bootstrap/
+#   .planning/phases/01-pitch-slice/
+#   .planning/phases/01.5-parity-polish-2-3-weeks-after-phase-1-close/
+#     ├── 01.5-01-PLAN.md          ← multiple plans per phase
+#     ├── 01.5-02-PLAN.md
+#     ├── 01.5-CONTEXT.md
+#     └── 01.5-DISCUSSION-LOG.md
+#   .planning/phases/02-itil-breadth/
+#
+# Ark layout (legacy, simpler):
+#   .planning/phase-N/PLAN.md
+#
+# This function finds the phase dir for a given phase number under EITHER layout.
 resolve_phase_dir() {
   local phase_num="$1"
   local planning_root="$PROJECT_DIR/.planning"
+  local padded
+  padded=$(normalize_phase_num "$phase_num")
 
-  # 1. Exact match: .planning/phase-N/
+  # GSD layout (preferred when detected)
+  if [[ -d "$planning_root/phases" ]]; then
+    # Try padded slug match: phases/01-* or phases/01.5-*
+    local gsd_match
+    gsd_match=$(ls -1d "$planning_root/phases/${padded}-"* 2>/dev/null | head -1)
+    if [[ -n "$gsd_match" ]]; then
+      echo "$gsd_match"
+      return 0
+    fi
+    # Try unpadded: phases/1-slug or phases/1.5-slug
+    gsd_match=$(ls -1d "$planning_root/phases/${phase_num}-"* 2>/dev/null | head -1)
+    if [[ -n "$gsd_match" ]]; then
+      echo "$gsd_match"
+      return 0
+    fi
+  fi
+
+  # Ark legacy layout: .planning/phase-N/
   if [[ -d "$planning_root/phase-$phase_num" ]]; then
     echo "$planning_root/phase-$phase_num"
     return 0
   fi
 
-  # 2. Decimal match: .planning/phase-N.X/ (closest to N)
+  # Ark decimal: .planning/phase-N.X/
   local decimal_match
   decimal_match=$(ls -1d "$planning_root/phase-${phase_num}."* 2>/dev/null | head -1)
   if [[ -n "$decimal_match" ]]; then
@@ -186,27 +240,25 @@ resolve_phase_dir() {
     return 0
   fi
 
-  # 3. Slugged match: .planning/phase-N-anything/
-  local slug_match
-  slug_match=$(ls -1d "$planning_root/phase-${phase_num}-"* 2>/dev/null | head -1)
-  if [[ -n "$slug_match" ]]; then
-    echo "$slug_match"
-    return 0
+  # No match — return canonical fallback for new phase
+  if is_gsd_project; then
+    # In a GSD project — refuse to create a sibling. Caller should escalate.
+    echo "$planning_root/phases/${padded}-NEW"
+  else
+    echo "$planning_root/phase-$phase_num"
   fi
-
-  # 4. GSD alternate shape: .planning/phases/N-slug/
-  if [[ -d "$planning_root/phases" ]]; then
-    local gsd_match
-    gsd_match=$(ls -1d "$planning_root/phases/$phase_num"-* 2>/dev/null | head -1)
-    if [[ -n "$gsd_match" ]]; then
-      echo "$gsd_match"
-      return 0
-    fi
-  fi
-
-  # 5. No existing dir — return canonical default (will be created)
-  echo "$planning_root/phase-$phase_num"
   return 1
+}
+
+# === Find ALL plan files in a phase dir (GSD has multiple) ===
+find_plan_files() {
+  local phase_dir="$1"
+  # GSD uses NN-NN-PLAN.md or NN.X-NN-PLAN.md pattern
+  ls -1 "$phase_dir"/*-PLAN.md 2>/dev/null | sort
+  # Ark legacy: PLAN.md
+  if [[ -f "$phase_dir/PLAN.md" ]]; then
+    echo "$phase_dir/PLAN.md"
+  fi
 }
 
 # === Run a single phase ===
@@ -231,25 +283,49 @@ run_phase() {
     log INFO "No existing phase dir; will create $phase_dir if work needed"
   fi
 
-  # Step 1: Plan phase — but ONLY if PLAN.md doesn't already exist anywhere
-  # in the resolved dir. Don't write empty plans into a sibling.
-  if [[ ! -f "$phase_dir/PLAN.md" ]]; then
-    # Before planning, check if GSD already produced a plan we should respect
+  # Step 1: Find existing plan files (GSD has multiple per phase, Ark has single PLAN.md)
+  local plan_files
+  plan_files=$(find_plan_files "$phase_dir")
+  local plan_count
+  plan_count=$(echo "$plan_files" | grep -cE "PLAN\.md$" 2>/dev/null || echo 0)
+
+  if [[ $plan_count -eq 0 ]]; then
+    # No plans exist
     if [[ $existed -eq 0 ]]; then
-      log WARN "Phase dir exists but no PLAN.md — likely WIP from GSD or other planner"
-      log WARN "Refusing to overwrite. Inspect: $phase_dir"
+      log WARN "Phase dir exists but no *-PLAN.md files — likely WIP or non-plan phase"
+      log WARN "Refusing to write to: $phase_dir"
       return 0
     fi
     log INFO "Planning phase $phase_num..."
     mkdir -p "$phase_dir"
     plan_phase "$phase_num"
+    plan_files=$(find_plan_files "$phase_dir")
+    plan_count=$(echo "$plan_files" | grep -cE "PLAN\.md$" 2>/dev/null || echo 0)
   else
-    log OK "Phase $phase_num already planned"
+    log OK "Phase $phase_num: $plan_count existing plan file(s) found"
   fi
 
-  # NEW: Validate plan has actual tasks before dispatching
+  # NEW: Validate plans have actual tasks before dispatching
+  local total_tasks=0
+  if [[ $plan_count -gt 0 ]]; then
+    while IFS= read -r pf; do
+      [[ -z "$pf" ]] && continue
+      local c
+      c=$(grep -cE '^[[:space:]]*-[[:space:]]+\[[[:space:]xX]\]' "$pf" 2>/dev/null || echo 0)
+      total_tasks=$((total_tasks + c))
+    done <<< "$plan_files"
+    log INFO "Phase $phase_num: $total_tasks total task checkboxes across $plan_count plan(s)"
+  fi
+
+  if [[ $total_tasks -eq 0 ]]; then
+    log WARN "Phase $phase_num has 0 actionable tasks across all plans — auto-skipping"
+    update_state "$phase_num" "complete (no tasks)"
+    return 0
+  fi
+
+  # Legacy fallback: if old single-plan path exists, keep that variable
   if [[ -f "$phase_dir/PLAN.md" ]]; then
-    local task_count
+    local task_count=$total_tasks
     task_count=$(grep -cE "^[[:space:]]*-[[:space:]]+\[[[:space:]]\]" "$phase_dir/PLAN.md" 2>/dev/null || echo 0)
     if [[ $task_count -eq 0 ]]; then
       log WARN "Phase $phase_num has no actionable tasks in PLAN.md — marking complete and moving on"

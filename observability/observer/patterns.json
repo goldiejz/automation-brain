@@ -107,6 +107,15 @@
       "lesson_after_n": 2,
       "auto_fix": "skip-empty-phase",
       "description": "Ark dispatched team for a phase with no actionable tasks \u2014 should auto-skip"
+    },
+    {
+      "id": "gsd-multi-plan-missed",
+      "regex": "phases/[0-9]+\\.[0-9]+-.*PLAN\\.md|0 tasks to execute|0 actionable tasks across",
+      "category": "logic-bug",
+      "severity": "high",
+      "lesson_after_n": 1,
+      "auto_fix": "use-find-plan-files",
+      "description": "Ark not detecting GSD multi-plan-per-phase shape (NN.X-NN-PLAN.md)"
     }
   ]
 }
