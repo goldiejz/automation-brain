@@ -255,3 +255,96 @@ All `class:self_heal` audit lines go through `_policy_log` from sourced `ark-pol
 - Layered retry: `scripts/self-heal.sh --retry`
 - Verify coverage: Tier 8 in `scripts/ark-verify.sh` (autonomy under stress)
 - Plan-level history: `.planning/phases/02-autonomy-policy/02-01..02-09-SUMMARY.md`
+
+---
+
+## AOS Self-Improving Self-Heal Contract (Phase 3)
+
+**Status:** locked 2026-04-26 (Phase 3 — AOS: Self-Improving Self-Heal)
+
+Phase 3 closes the policy feedback loop. The audit log written by `_policy_log` (Phase 2) is read by a learner that scores patterns, auto-promotes the high-success ones into `~/vaults/ark/policy.yml`, and auto-deprecates the duds. The system improves itself without losing the schema lock or the true-blocker contract.
+
+### Components
+
+| Component | Path | Role |
+|---|---|---|
+| Outcome tagger | `scripts/lib/outcome-tagger.sh` | SINGLE writer for the `outcome` field; reads delivery logs + git history within a configurable window (default 10 min) and patches `outcome` via `UPDATE decisions SET outcome=... WHERE decision_id=?`, idempotent (the patch is a no-op if `outcome IS NOT NULL`) |
+| Policy learner | `scripts/policy-learner.sh` | Aggregates tagged decisions into `(class, decision, dispatcher, complexity)` patterns via SQL `GROUP BY`; emits promote/deprecate candidates to `observability/policy-evolution-pending.jsonl` |
+| Auto-patcher | inside `policy-learner.sh::learner_apply_pending` | Applies pending candidates to `~/vaults/ark/policy.yml` under a mkdir-lock (macOS-safe; no `flock` dep), atomic-write via `mv tmp policy.yml`, commits each patch to the vault git repo, emits `_policy_log self_improve PROMOTED|DEPRECATED` audit entry |
+| Digest writer | `scripts/lib/policy-digest.sh` (`learner_write_digest`) | Writes `~/vaults/ark/observability/policy-evolution.md` (Promoted, Deprecated, Mediocre sections); idempotent |
+
+### Audit-log substrate (Phase 2.5 SQLite)
+
+Phase 2.5 migrated `~/vaults/ark/observability/policy-decisions.jsonl` to SQLite at `~/vaults/ark/observability/policy.db`. Schema is preserved 1-for-1 (`schema_version=1`, every Phase 2 field is a column). Phase 3 reads + patches via `sqlite3` rather than `jq`. The JSONL form remains the canonical wire/log format for new writes; Phase 3 reads the materialized DB.
+
+Per SUPERSEDES.md, all synthetic fixtures and Tier 9 checks use `INSERT INTO decisions ...` against an isolated tmp `policy.db`, not JSONL heredocs.
+
+### Outcome lifecycle
+
+```
+NULL
+  ↓ outcome-tagger.sh runs (post-phase or `ark learn`)
+  ↓ heuristic: subsequent dispatch success in same phase     → "success"
+  ↓ heuristic: matching `class:escalation` line              → "failure"
+  ↓ heuristic: no follow-up signal within window             → "ambiguous"
+"success" | "failure" | "ambiguous"  (patched in place; idempotent)
+```
+
+The tagger is the SINGLE writer for `outcome`; nothing else mutates this column.
+
+### Self-improving learner (thresholds)
+
+- **Promote:** `count >= 5 AND success_rate >= 0.80`
+- **Deprecate:** `count >= 5 AND success_rate <= 0.20`
+- **Ignore (mediocre middle):** `0.20 < success_rate < 0.80` OR `count < 5`
+
+Hardcoded for Phase 3 — configurable via `policy.yml` is deferred until data justifies it (CONTEXT.md decision #4).
+
+### True-blocker classes are NEVER auto-patched
+
+The 4 escalation classes from the Phase 2 contract (monthly-budget, architectural-ambiguity, destructive-op, repeated-failure) are filtered out at SQL aggregation time AND re-checked at apply time (defense in depth). SQL filter: `class NOT IN ('escalation','self_improve')`. Apply-time filter rechecks `class == "escalation"` OR `(class == "budget" AND decision == "ESCALATE_MONTHLY_CAP")`.
+
+### Auto-patch contract
+
+`learner_apply_pending` is the only function that writes `~/vaults/ark/policy.yml`. Its contract:
+
+1. **mkdir-lock** at `$VAULT_PATH/.policy-yml.lock` (30 s timeout). Two simultaneous learner runs serialize through this lock; neither corrupts policy.yml.
+2. **Atomic write:** `python3 + PyYAML` produces the patched YAML to a `.tmp` file in the same directory, then `mv tmp policy.yml`. Partial writes are impossible.
+3. **Vault git commit:** `git -C $VAULT_PATH commit policy.yml -m "self_improve: ..."` — every auto-patch is reversible via `git revert`. If `$VAULT_PATH` is not a git repo, the commit is a graceful no-op (Tier 9 isolation depends on this).
+4. **Audit entry:** one `_policy_log self_improve PROMOTED|DEPRECATED` line per patch.
+
+### Schema commitment (NO change from Phase 2)
+
+`schema_version` stays at `1`. Phase 3 patches `outcome` in place. The `class` value `self_improve` is a NEW value (used by auto-patch audit entries) — this is not a schema migration; the column is `TEXT`/free-form by design.
+
+Audit values for `class:self_improve`:
+- `decision`: `PROMOTED` or `DEPRECATED`
+- `reason`: `rate_pct_<NN>_count_<N>`
+- `context`: `{class, decision, dispatcher, complexity, rate_pct, count}`
+- `correlation_id`: the FIRST `decision_id` from the input set (chains the learning back to evidence)
+
+### Run cadence
+
+- **Post-phase:** `scripts/ark-deliver.sh::run_phase` invokes the learner with a windowed `--since` (default 1 h ago) after `update_state`. Non-fatal — learner failure does not fail the phase. Output redirected to `.planning/delivery-logs/learner-phase-N.log`.
+- **Manual:** `ark learn` (default: last 7 days), `ark learn --full`, `ark learn --since DATE`, `ark learn --tag-first` (run outcome-tagger before scoring).
+
+### Verification (Tier 9)
+
+Tier 9 in `scripts/ark-verify.sh` runs a synthetic-fixture pipeline test in an isolated tmp vault (mirrors Phase 2 NEW-W-1 isolation pattern) and asserts:
+- 5/83% pattern → promotion
+- 5/17% pattern → deprecation
+- 5/50% pattern → no-op (mediocre middle)
+- true-blocker classes (`budget+ESCALATE_MONTHLY_CAP`, `class:escalation`) → no-op
+- real vault `policy.db` md5 unchanged after the test (isolation guarantee)
+- idempotent re-run: zero new `self_improve` audit entries
+
+20 checks total. Tier 1–8 retained.
+
+### Cross-references
+
+- Decision functions: `scripts/policy-learner.sh::{learner_score_patterns, learner_emit_promotions, learner_emit_deprecations, learner_apply_pending, learner_run}`
+- Outcome inference: `scripts/lib/outcome-tagger.sh::{outcome_classify, outcome_tag_decision, outcome_tag_window}`
+- Digest: `scripts/lib/policy-digest.sh::{learner_write_digest}`
+- Tier 9 verify: `scripts/ark-verify.sh` (search "Tier 9")
+- Plan history: `.planning/phases/03-self-improving-self-heal/{03-01..03-08}-SUMMARY.md`
+- Substrate notes: `.planning/phases/03-self-improving-self-heal/SUPERSEDES.md`
