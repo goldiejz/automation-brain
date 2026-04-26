@@ -169,6 +169,7 @@ Commands:
   status        Show snapshot + decision log state
   bootstrap     Run new project bootstrap (with brain queries)
   align         Standardize imported project to canonical structure
+  doctor        Comprehensive health check
   insights      Show cross-project insights from Phase 6
   lessons       List all lessons in the brain
   phase-6       Manually trigger Phase 6 observability daemon
@@ -202,6 +203,7 @@ case "$COMMAND" in
   status)     cmd_status ;;
   bootstrap)  cmd_bootstrap ;;
   align)      cmd_align "$@" ;;
+  doctor)     bash "$VAULT_PATH/scripts/brain-doctor.sh" ;;
   insights)   cmd_insights ;;
   lessons)    cmd_lessons ;;
   phase-6)    cmd_phase6 ;;
