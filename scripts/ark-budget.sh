@@ -26,6 +26,17 @@ TIER_FILE="$PROJECT_DIR/.planning/budget-tier.txt"
 EVENTS_LOG="${ARK_HOME:-$HOME/vaults/ark}/observability/budget-events.jsonl"
 ACTION=""
 
+# AOS policy integration (graceful degradation if missing)
+VAULT_PATH="${ARK_HOME:-$HOME/vaults/ark}"
+if [[ -f "$VAULT_PATH/scripts/ark-policy.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "$VAULT_PATH/scripts/ark-policy.sh"
+fi
+if [[ -f "$VAULT_PATH/scripts/ark-escalations.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "$VAULT_PATH/scripts/ark-escalations.sh"
+fi
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --set-cap) ACTION="set-cap"; CAP="$2"; shift 2 ;;
