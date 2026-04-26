@@ -228,24 +228,24 @@ $phase_block
   log OK "Plan written: $phase_dir/PLAN.md"
 }
 
-# === Execute a phase plan ===
+# === Execute a phase plan via TEAM (Architect → Engineers → QC/QA/Security → PM) ===
 execute_phase() {
   local phase_num="$1"
-  local phase_dir="$PROJECT_DIR/.planning/phase-$phase_num"
 
-  log INFO "Executing tasks via execute-phase.sh (Codex/Gemini/Haiku cascade)..."
+  log INFO "Dispatching team for Phase $phase_num..."
 
-  # Real implementation: dispatches each task to AI, applies output, commits
-  bash "$VAULT_PATH/scripts/execute-phase.sh" "$PROJECT_DIR" "$phase_num"
-  local exec_result=$?
+  # Team orchestrator: architect designs, engineers implement,
+  # QC/QA/Security validate, PM gates sign-off
+  bash "$VAULT_PATH/scripts/brain-team.sh" "$PROJECT_DIR" "$phase_num"
+  local team_result=$?
 
-  if [[ $exec_result -eq 0 ]]; then
-    log OK "All tasks dispatched and applied"
+  if [[ $team_result -eq 0 ]]; then
+    log OK "Team approved phase $phase_num"
   else
-    log WARN "Some tasks failed — see $phase_dir/task-*-output.md"
+    log WARN "Team blocked phase $phase_num — see CEO report"
   fi
 
-  return $exec_result
+  return $team_result
 }
 
 # === Verify phase ===
