@@ -211,6 +211,7 @@ Commands:
     insights    Show cross-project insights from Phase 6
     lessons     List all lessons in the ark
     learn       Run the policy-learner (--full | --since DATE; default: last 7 days)
+    promote-lessons  Promote cross-customer lessons (--full | --since DATE | --dry-run; default: last 7 days)
     phase-6     Manually trigger Phase 6 observability daemon
 
   help          Show this help
@@ -273,6 +274,43 @@ case "$COMMAND" in
   report)     shift; bash "$VAULT_PATH/scripts/ark-report.sh" "$@" ;;
   insights)   cmd_insights ;;
   lessons)    cmd_lessons ;;
+  promote-lessons)
+    shift
+    if [[ ! -f "$VAULT_PATH/scripts/lesson-promoter.sh" ]]; then
+      echo -e "${RED}❌ scripts/lesson-promoter.sh not found — Phase 6 not yet installed${NC}" >&2
+      exit 1
+    fi
+    case "${1:-}" in
+      --full)
+        # Sourced + subshell so multi-flag invocation (--full + --apply) works
+        # regardless of lesson-promoter.sh CLI dispatcher single-flag limitation.
+        ( source "$VAULT_PATH/scripts/lesson-promoter.sh" && promoter_run --full --apply )
+        ;;
+      --since)
+        shift
+        if [[ -z "${1:-}" ]]; then
+          echo -e "${RED}❌ --since requires an ISO8601 date (e.g., 2026-04-19T00:00:00Z)${NC}" >&2
+          exit 1
+        fi
+        ( source "$VAULT_PATH/scripts/lesson-promoter.sh" && promoter_run --since "$1" --apply )
+        ;;
+      --dry-run)
+        ( source "$VAULT_PATH/scripts/lesson-promoter.sh" && promoter_run --dry-run )
+        ;;
+      "")
+        # Default: last 7 days, with --apply (BSD + GNU date compatible)
+        _ark_since=$(date -u -v-7d +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
+          || date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
+          || date -u +%Y-%m-%dT%H:%M:%SZ)
+        ( source "$VAULT_PATH/scripts/lesson-promoter.sh" && promoter_run --since "$_ark_since" --apply )
+        ;;
+      *)
+        echo -e "${RED}❌ Unknown flag: $1${NC}" >&2
+        echo "Usage: ark promote-lessons [--full | --since ISO8601 | --dry-run]" >&2
+        exit 1
+        ;;
+    esac
+    ;;
   learn)
     shift
     if [[ ! -f "$VAULT_PATH/scripts/policy-learner.sh" ]]; then

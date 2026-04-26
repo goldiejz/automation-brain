@@ -346,6 +346,24 @@ run_phase() {
     log INFO "policy-learner.sh not present; skipping learning pass"
   fi
 
+  # === Phase 6 hook (Plan 06-04) — non-fatal cross-customer lesson promoter ===
+  # Mirrors Phase 3 03-05 discipline: observability, not delivery gate.
+  # Failure here MUST NOT abort phase completion.
+  if [[ -f "$VAULT_PATH/scripts/lesson-promoter.sh" ]]; then
+    _lp_since=$(date -u -v-1H +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
+      || date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
+      || date -u +%Y-%m-%dT%H:%M:%SZ)
+    _lp_log="$PROJECT_DIR/.planning/delivery-logs/lesson-promoter-phase-${phase_num}.log"
+    mkdir -p "$(dirname "$_lp_log")" 2>/dev/null || true
+    log INFO "Phase $phase_num: invoking lesson-promoter (non-fatal, --since $_lp_since)"
+    # Sourced subshell so multi-flag invocation (--since DATE + --apply) works
+    # despite lesson-promoter.sh CLI dispatcher single-flag limitation.
+    ( source "$VAULT_PATH/scripts/lesson-promoter.sh" && promoter_run --since "$_lp_since" --apply ) \
+      >>"$_lp_log" 2>&1 \
+      || log WARN "lesson-promoter post-phase hook failed (non-fatal); see $_lp_log"
+  fi
+  # === END Phase 6 hook ===
+
   # Step 7: Record decision for brain learning
   record_decision "$phase_num" "complete" "success"
 
