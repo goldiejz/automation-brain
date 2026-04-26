@@ -213,11 +213,13 @@ portfolio_score_project() {
     budget_headroom=$(( 100 ))  # safety fallback (function missing)
   fi
 
-  # ceo_priority: stub returns 0 (Plan 05-03 overrides via SECTION:ceo-directive).
+  # ceo_priority: filled by SECTION:ceo-directive (Plan 05-03).
+  # _portfolio_ceo_priority is always defined when this file is sourced; the
+  # type-check survives only as defence against a half-source race.
   if type _portfolio_ceo_priority >/dev/null 2>&1; then
     ceo_priority=$(_portfolio_ceo_priority "$proj")
   else
-    ceo_priority=0
+    ceo_priority=$(( 0 ))  # safety fallback (function missing)
   fi
 
   local headroom_bonus=0
@@ -368,6 +370,77 @@ _portfolio_global_fair_share() {
 # Plan 05-03 owns this region. Defines _portfolio_ceo_priority() which
 # parses ~/vaults/StrategixMSPDocs/programme.md `## Next Priority` heading.
 # Returns 1 if project name matches; else 0.
+#
+# Source file resolution: $ARK_PROGRAMME_MD overrides
+# $HOME/vaults/StrategixMSPDocs/programme.md. Missing file → 0 for all projects
+# (graceful fallback to heuristic per CONTEXT.md Risks #2).
+#
+# Match rules (regex-tolerant):
+#   - Heading: ^## <whitespace> Next <whitespace> Priority <whitespace> $
+#   - Value: first non-blank, non-comment line after heading; stop at next "##".
+#   - Strip leading bullet marker ("- " or "* "), leading whitespace, and
+#     trailing punctuation ([.,;:]+).
+#   - Take first whitespace-delimited token.
+#   - Case-insensitive compare against basename($project_path) — Bash 3 `tr`
+#     lowercase (no `${var,,}`).
+#
+# Module-level cache: programme.md is read ONCE per process. Self-test exposes
+# `_portfolio_ceo_reset` to invalidate the cache between fixture rewrites.
+
+_PORTFOLIO_CEO_CACHE=""        # cached extracted slug (empty = no directive)
+_PORTFOLIO_CEO_CACHED=0        # 1 = cache populated (read attempted)
+
+# _portfolio_ceo_load — read programme.md once; populate cache.
+_portfolio_ceo_load() {
+  [[ "$_PORTFOLIO_CEO_CACHED" == "1" ]] && return 0
+  _PORTFOLIO_CEO_CACHED=1
+  local pmd="${ARK_PROGRAMME_MD:-$HOME/vaults/StrategixMSPDocs/programme.md}"
+  [[ ! -f "$pmd" ]] && return 0
+  local extracted
+  extracted=$(awk '
+    /^##[[:space:]]+Next[[:space:]]+Priority[[:space:]]*$/ { found=1; next }
+    found && /^##[[:space:]]/ { exit }
+    found {
+      # strip leading whitespace + bullet markers ("- " / "* ")
+      sub(/^[[:space:]]*[-*][[:space:]]*/, "")
+      sub(/^[[:space:]]+/, "")
+      if ($0 == "") next
+      if (substr($0, 1, 1) == "#") next
+      n = split($0, parts, /[[:space:]]+/)
+      if (n > 0 && parts[1] != "") {
+        gsub(/[.,;:]+$/, "", parts[1])
+        print parts[1]
+        exit
+      }
+    }
+  ' "$pmd" 2>/dev/null)
+  # Bash 3 lowercase
+  _PORTFOLIO_CEO_CACHE=$(echo "$extracted" | tr 'A-Z' 'a-z')
+}
+
+# _portfolio_ceo_reset — invalidate cache (test seam).
+_portfolio_ceo_reset() {
+  _PORTFOLIO_CEO_CACHE=""
+  _PORTFOLIO_CEO_CACHED=0
+}
+
+# _portfolio_ceo_priority <project_path> — echo 1 if basename matches the CEO
+# directive in programme.md, else 0.
+_portfolio_ceo_priority() {
+  local proj="$1"
+  _portfolio_ceo_load
+  if [[ -z "$_PORTFOLIO_CEO_CACHE" ]]; then
+    echo 0
+    return 0
+  fi
+  local base
+  base=$(basename "$proj" | tr 'A-Z' 'a-z')
+  if [[ "$base" == "$_PORTFOLIO_CEO_CACHE" ]]; then
+    echo 1
+  else
+    echo 0
+  fi
+}
 # === END SECTION: ceo-directive ===
 
 # === SECTION: audit-and-cooldown (Plan 05-04) ===
@@ -608,6 +681,58 @@ EOF_BETA
   # No vault policy.yml present → defaults: cap_total=1000000, used_total=0.
   fs=$(_portfolio_global_fair_share 4)
   assert_eq "250000" "$fs" "_portfolio_global_fair_share 4 → 250000 (default 1M / 4)"
+
+  echo ""
+  echo "Plan 05-03 ceo-directive assertions:"
+  # Fixture programme.md: heading present, value = proj-a (vanilla form)
+  PMD="$TMP_BASE/programme.md"
+  cat > "$PMD" <<'EOF_PMD1'
+# Programme
+
+## Other Section
+blah
+
+## Next Priority
+
+proj-a
+
+## Tail
+EOF_PMD1
+  export ARK_PROGRAMME_MD="$PMD"
+  _portfolio_ceo_reset
+  assert_eq "1" "$(_portfolio_ceo_priority "$TMP_PORT/proj-a")" "ceo directive matches proj-a"
+  assert_eq "0" "$(_portfolio_ceo_priority "$TMP_PORT/proj-b")" "ceo directive does not match proj-b"
+
+  # Missing programme.md → 0 for everyone
+  export ARK_PROGRAMME_MD="$TMP_BASE/no-such-file.md"
+  _portfolio_ceo_reset
+  assert_eq "0" "$(_portfolio_ceo_priority "$TMP_PORT/proj-a")" "missing programme.md returns 0"
+
+  # Bullet form with trailing punctuation: "- proj-c."
+  cat > "$PMD" <<'EOF_PMD2'
+## Next Priority
+- proj-c.
+
+## Other
+EOF_PMD2
+  export ARK_PROGRAMME_MD="$PMD"
+  _portfolio_ceo_reset
+  assert_eq "1" "$(_portfolio_ceo_priority "$TMP_PORT/proj-c")" "bullet+punctuation form parses to proj-c"
+
+  # Score row reflects ceo_priority=1 when directive set
+  cat > "$PMD" <<'EOF_PMD3'
+## Next Priority
+proj-a
+EOF_PMD3
+  export ARK_PROGRAMME_MD="$PMD"
+  _portfolio_ceo_reset
+  row_a_ceo=$(portfolio_score_project "$TMP_PORT/proj-a")
+  ceo_a=$(echo "$row_a_ceo" | awk -F'\t' '{print $7}')
+  assert_eq "1" "$ceo_a" "score row reflects ceo_priority=1 for proj-a"
+
+  # Reset directive env so it doesn't bleed into later tests
+  unset ARK_PROGRAMME_MD
+  _portfolio_ceo_reset
 
   echo ""
   echo "Real-DB isolation (no writes to ~/vaults/ark/observability/policy.db):"
