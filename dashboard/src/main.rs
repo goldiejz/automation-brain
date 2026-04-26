@@ -1,4 +1,4 @@
-//! brain-dash — Executive dashboard for the agentic operating system
+//! ark-dash — Executive dashboard for the agentic operating system
 //!
 //! Real-time TUI showing all projects, agents (employees), events, and metrics.
 //! Pluggable employee registry: drop a JSON file in vault/employees/ to add a role.
@@ -19,8 +19,8 @@ use ratatui::{backend::CrosstermBackend, Terminal};
 use std::{io, path::PathBuf, time::Duration};
 
 #[derive(Parser, Debug)]
-#[command(name = "brain-dash")]
-#[command(about = "Executive dashboard for Brain OS — agentic operating system")]
+#[command(name = "ark-dash")]
+#[command(about = "Executive dashboard for Ark OS — agentic operating system")]
 struct Args {
     /// Path to projects directory (default: ~/code)
     #[arg(short, long, default_value = "~/code")]

@@ -308,7 +308,7 @@ export async function recordBootstrapDecision(decision: {
   try {
     const { spawn } = await import("child_process");
     const os = await import("os");
-    const vaultRoot = process.env.AUTOMATION_BRAIN_PATH ||
+    const vaultRoot = process.env.ARK_HOME ||
       path.join(os.homedir(), "vaults", "automation-brain");
     const daemonPath = path.join(vaultRoot, "observability", "phase-6-daemon.ts");
     if (fs.existsSync(daemonPath)) {
@@ -397,7 +397,7 @@ export async function syncBrain(): Promise<{
   const { spawnSync } = await import("child_process");
   const os = await import("os");
   const vaultPath =
-    process.env.AUTOMATION_BRAIN_PATH ||
+    process.env.ARK_HOME ||
     path.join(os.homedir(), "vaults", "automation-brain");
   const syncScript = path.join(vaultPath, "scripts", "brain-sync.sh");
 

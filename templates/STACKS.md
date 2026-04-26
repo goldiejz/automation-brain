@@ -67,31 +67,31 @@ These are independent dimensions. A `service-desk` can run on Cloudflare, AWS, V
 
 ```bash
 # Strategix service desk on Cloudflare
-brain create acme-sd \
+ark create acme-sd \
   --type service-desk \
   --stack vite-react-hono \
   --deploy cloudflare-workers
 
 # Same project type but on AWS
-brain create acme-sd \
+ark create acme-sd \
   --type service-desk \
   --stack express-node \
   --deploy aws-ecs
 
 # A simple internal tool
-brain create timesheet-tool \
+ark create timesheet-tool \
   --type internal-tool \
   --stack nextjs \
   --deploy vercel
 
 # A CLI library — no deployment
-brain create my-cli \
+ark create my-cli \
   --type cli-tool \
   --stack node-cli \
   --deploy none
 
 # Importing existing — brain detects and proposes
-brain align /path/to/existing-project
+ark align /path/to/existing-project
 # → Detects: package.json with Next.js 16
 # → Proposes: --type internal-tool --stack nextjs --deploy vercel
 # → Asks: confirm or override?
@@ -120,12 +120,12 @@ New projects choose their stack/deploy independently of project-type. The brain'
 
 ```bash
 # Add Rust + Axum stack
-mkdir -p ~/vaults/automation-brain/templates/stacks/rust-axum
+mkdir -p ~/vaults/ark/templates/stacks/rust-axum
 # Add files: Cargo.toml.tmpl, src/main.rs.tmpl, README.md (purpose + conventions)
-# Brain create will pick it up by name automatically.
+# Ark create will pick it up by name automatically.
 
 # Add Hetzner Cloud deployment
-mkdir -p ~/vaults/automation-brain/templates/deployments/hetzner
+mkdir -p ~/vaults/ark/templates/deployments/hetzner
 # Add files: deploy.sh.tmpl, server-setup.md, README.md
 # Reference in STACKS.md.
 ```

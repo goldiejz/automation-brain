@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# brain align — standardize imported/existing project to canonical structure
+# ark align — standardize imported/existing project to canonical structure
 #
 # Usage:
-#   brain-align.sh                    # Align current directory
-#   brain-align.sh /path/to/project   # Align specific project
-#   brain-align.sh --dry-run          # Show what would change
+#   ark-align.sh                    # Align current directory
+#   ark-align.sh /path/to/project   # Align specific project
+#   ark-align.sh --dry-run          # Show what would change
 #
 # What it does:
 # 1. Detects existing planning artifacts (lessons.md, STATE.md, etc.)
@@ -17,7 +17,7 @@
 
 set -uo pipefail
 
-VAULT_PATH="${AUTOMATION_BRAIN_PATH:-$HOME/vaults/automation-brain}"
+VAULT_PATH="${ARK_HOME:-$HOME/vaults/ark}"
 PROJECT_DIR="${1:-$(pwd)}"
 DRY_RUN=false
 
@@ -32,7 +32,7 @@ PROJECT_DIR="$(cd "$PROJECT_DIR" 2>/dev/null && pwd)" || {
   exit 1
 }
 
-echo "🧠 Brain Align: $PROJECT_DIR"
+echo "🧠 Ark Align: $PROJECT_DIR"
 echo "Mode: $($DRY_RUN && echo 'DRY RUN' || echo 'APPLY')"
 echo ""
 
@@ -322,7 +322,7 @@ EOF
 
 ## Phase 0 — Bootstrap (current)
 - [x] Aligned to canonical structure
-- [ ] Brain integration verified
+- [ ] Ark integration verified
 - [ ] Initial implementation
 
 ## Phase 1 — Core
@@ -425,8 +425,8 @@ if [[ "$DRY_RUN" == "false" ]]; then
     echo "1. Review the changes above"
     echo "2. Update stub files (PROJECT.md, STATE.md) with real content"
     echo "3. Address warnings if any"
-    echo "4. Run \`brain bootstrap\` to log alignment decision"
-    echo "5. Run \`brain status\` to verify"
+    echo "4. Run \`ark bootstrap\` to log alignment decision"
+    echo "5. Run \`ark status\` to verify"
   } > "$REPORT"
   echo "✅ Report: $REPORT"
 fi
@@ -457,4 +457,4 @@ if [[ ${#WARNINGS[@]} -gt 0 ]]; then
   printf '  ⚠️  %s\n' "${WARNINGS[@]}"
 fi
 echo ""
-echo "Next: brain bootstrap"
+echo "Next: ark bootstrap"

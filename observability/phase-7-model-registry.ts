@@ -493,7 +493,7 @@ export async function runModelRegistry() {
   console.log("");
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log("✅ MODEL REGISTRY REFRESHED\n");
-  console.log(`Registry saved: ~/.claude/vaults/automation-brain/cache/model-registry.json`);
+  console.log(`Registry saved: ~/.claude/vaults/ark/cache/model-registry.json`);
   console.log(
     "Ready for Phase 7 tier resolver to use latest models automatically\n"
   );

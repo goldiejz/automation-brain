@@ -2,19 +2,19 @@
 # brain-sync — Update sub-project's brain snapshot from vault
 #
 # Usage:
-#   brain-sync.sh                    # Sync current dir's snapshot
-#   brain-sync.sh /path/to/project   # Sync specific project
+#   ark-sync.sh                    # Sync current dir's snapshot
+#   ark-sync.sh /path/to/project   # Sync specific project
 #
 # What it does:
 #   1. Pull latest vault from GitHub (origin/main)
 #   2. Validate vault snapshot integrity
-#   3. Copy lessons/cache/templates to local .parent-automation/brain-snapshot/
+#   3. Copy lessons/cache/templates to local .parent-automation/ark-snapshot/
 #   4. Update SNAPSHOT-MANIFEST.json with new version + timestamp
 #   5. Report what changed
 
 set -euo pipefail
 
-VAULT_PATH="${AUTOMATION_BRAIN_PATH:-$HOME/vaults/automation-brain}"
+VAULT_PATH="${ARK_HOME:-$HOME/vaults/ark}"
 TARGET_PROJECT="${1:-$(pwd)}"
 
 # Resolve target project root (look for .parent-automation/)
@@ -26,7 +26,7 @@ fi
 
 SNAPSHOT_TARGET="$TARGET_PROJECT/.parent-automation/brain-snapshot"
 
-echo "🧠 Brain Sync: $TARGET_PROJECT"
+echo "🧠 Ark Sync: $TARGET_PROJECT"
 echo ""
 
 # Step 1: Pull latest vault

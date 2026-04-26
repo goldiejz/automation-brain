@@ -1,12 +1,12 @@
 [package]
-name = "brain-dash"
+name = "ark-dash"
 version = "0.1.0"
 edition = "2021"
-description = "Brain OS — Executive dashboard for the agentic operating system"
-authors = ["Brain OS"]
+description = "Ark OS — Executive dashboard for the agentic operating system"
+authors = ["Ark OS"]
 
 [[bin]]
-name = "brain-dash"
+name = "ark-dash"
 path = "src/main.rs"
 
 [dependencies]

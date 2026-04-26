@@ -1,6 +1,6 @@
-# Brain Dash — Executive Dashboard
+# Ark Dash — Executive Dashboard
 
-A Rust-based TUI dashboard for the Brain OS agentic operating system.
+A Rust-based TUI dashboard for the Ark OS agentic operating system.
 
 ## What it shows
 
@@ -23,31 +23,31 @@ brew install rust
 ## Build
 
 ```bash
-cd ~/vaults/automation-brain/dashboard
+cd ~/vaults/ark/dashboard
 cargo build --release
 ```
 
-Binary output: `target/release/brain-dash`
+Binary output: `target/release/ark-dash`
 
 ## Install globally
 
 ```bash
-ln -sf ~/vaults/automation-brain/dashboard/target/release/brain-dash ~/.local/bin/brain-dash
+ln -sf ~/vaults/ark/dashboard/target/release/ark-dash ~/.local/bin/ark-dash
 ```
 
-Now run from anywhere: `brain-dash`
+Now run from anywhere: `ark-dash`
 
 ## Usage
 
 ```bash
-# Default: scans ~/code for projects, ~/vaults/automation-brain for vault
-brain-dash
+# Default: scans ~/code for projects, ~/vaults/ark for vault
+ark-dash
 
 # Custom paths
-brain-dash --projects ~/work --vault ~/my-brain
+ark-dash --projects ~/work --vault ~/my-brain
 
 # Faster refresh (default 2000ms)
-brain-dash --refresh 500
+ark-dash --refresh 500
 ```
 
 ## Keybindings
@@ -62,11 +62,11 @@ brain-dash --refresh 500
 
 ## Pluggable Employee Registry
 
-The dashboard reads `~/vaults/automation-brain/employees/*.json` at runtime. Each file defines a "role" available to the brain.
+The dashboard reads `~/vaults/ark/employees/*.json` at runtime. Each file defines a "role" available to the brain.
 
 ### Add a new employee
 
-Create `~/vaults/automation-brain/employees/my-role.json`:
+Create `~/vaults/ark/employees/my-role.json`:
 
 ```json
 {
@@ -103,10 +103,10 @@ Refresh dashboard (`r`) — new employee appears.
 ## Architecture
 
 ```
-brain-dash (Rust binary)
+ark-dash (Rust binary)
   ├── reads ~/code/*/.parent-automation/ → projects panel
-  ├── reads ~/vaults/automation-brain/employees/*.json → employees panel
-  ├── reads ~/vaults/automation-brain/observability/*.jsonl → events
+  ├── reads ~/vaults/ark/employees/*.json → employees panel
+  ├── reads ~/vaults/ark/observability/*.jsonl → events
   └── aggregates → metrics panel
 
 Employees can be added without recompiling:
@@ -122,7 +122,7 @@ Employees can be added without recompiling:
 
 ## Future additions
 
-- `brain-dash dispatch <employee-id> <task>` — hire an employee from the CLI
+- `ark-dash dispatch <employee-id> <task>` — hire an employee from the CLI
 - Real-time websocket streaming from running brain processes
 - Cost-per-month projection based on tier history
 - Click-through to view individual project's CEO report

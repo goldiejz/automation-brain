@@ -1,8 +1,8 @@
-# Deployment Status: Obsidian Brain + Dynamic Model Registry
+# Deployment Status: Obsidian Ark + Dynamic Model Registry
 
 **Date:** 2026-04-25  
 **Status:** ✅ **LIVE** — All 3 Strategix repos activated  
-**System:** Self-improving automation brain with dynamic model selection
+**System:** Self-improving ark with dynamic model selection
 
 ---
 
@@ -11,16 +11,16 @@
 ### Snapshot Infrastructure
 | Repo | Location | Files | Status |
 |------|----------|-------|--------|
-| strategix-servicedesk | `.parent-automation/brain-snapshot/` | 64 | ✅ Live |
-| strategix-crm | `.parent-automation/brain-snapshot/` | 64 | ✅ Live |
-| strategix-ioc | `.parent-automation/brain-snapshot/` | 64 | ✅ Live |
+| strategix-servicedesk | `.parent-automation/ark-snapshot/` | 64 | ✅ Live |
+| strategix-crm | `.parent-automation/ark-snapshot/` | 64 | ✅ Live |
+| strategix-ioc | `.parent-automation/ark-snapshot/` | 64 | ✅ Live |
 
 **Snapshot Contents:** 46 lessons, 10 cached queries, 3 project templates, anti-patterns, manifest
 
 ### Bootstrap Integration
 | Component | Location | Status |
 |-----------|----------|--------|
-| Query Brain Module | `query-brain.ts` (all 3 repos) | ✅ Deployed |
+| Query Ark Module | `query-brain.ts` (all 3 repos) | ✅ Deployed |
 | Bootstrap v2 | `new-project-bootstrap-v2.ts` (all 3 repos) | ✅ Deployed |
 | Decision Logging | `.planning/bootstrap-decisions.jsonl` (all 3 repos) | ✅ Ready |
 
@@ -217,7 +217,7 @@ npx ts-node observability/phase-6-daemon-extended.ts
 
 **Snapshot corrupted in one repo?**
 - Other repos unaffected (3 independent snapshots)
-- Restore from automation-brain vault: `cp ~/vaults/automation-brain/cache/query-responses/* .parent-automation/brain-snapshot/cache/`
+- Restore from automation-brain vault: `cp ~/vaults/ark/cache/query-responses/* .parent-automation/ark-snapshot/cache/`
 
 **Claude API fails during bootstrap?**
 - If using cached response: works instantly
@@ -248,7 +248,7 @@ cd strategix-servicedesk/.parent-automation
 npx ts-node new-project-bootstrap-v2.ts
 
 # Test Phase 6 daemon
-cd ~/vaults/automation-brain
+cd ~/vaults/ark
 npx ts-node observability/phase-6-daemon.ts
 
 # Test model registry update
@@ -261,10 +261,10 @@ npx ts-node observability/phase-7-tier-resolver.ts
 ### Monitor Logs
 ```bash
 # Phase 6 weekly run
-tail -f ~/vaults/automation-brain/logs/phase-6.log
+tail -f ~/vaults/ark/logs/phase-6.log
 
 # Model registry updates
-tail -f ~/vaults/automation-brain/logs/phase-6-models.log
+tail -f ~/vaults/ark/logs/phase-6-models.log
 
 # Bootstrap decision logs
 cat strategix-servicedesk/.planning/bootstrap-decisions.jsonl
@@ -273,16 +273,16 @@ cat strategix-servicedesk/.planning/bootstrap-decisions.jsonl
 ### View Latest Insights
 ```bash
 # Pattern detection
-cat ~/vaults/automation-brain/observability/cross-customer-insights.md
+cat ~/vaults/ark/observability/cross-customer-insights.md
 
 # Lesson effectiveness
-cat ~/vaults/automation-brain/observability/lesson-effectiveness.md
+cat ~/vaults/ark/observability/lesson-effectiveness.md
 
 # Token spend tracking
-cat ~/vaults/automation-brain/observability/token-spend-log.md
+cat ~/vaults/ark/observability/token-spend-log.md
 
 # Model weight adjustments
-cat ~/vaults/automation-brain/observability/model-weight-adjustments.md
+cat ~/vaults/ark/observability/model-weight-adjustments.md
 ```
 
 ---
@@ -305,7 +305,7 @@ cat ~/vaults/automation-brain/observability/model-weight-adjustments.md
            [Bootstrap with 40% token savings]
                           ↓
 ┌─────────────────────────────────────────────────────────────┐
-│   ~/vaults/automation-brain/ (Observability Hub)             │
+│   ~/vaults/ark/ (Observability Hub)             │
 │  ┌──────────────────────────────────────────────────────┐  │
 │  │ Phase 6: observability-daemon.ts (weekly run)        │  │
 │  │  └─ Reads: decision logs from all 3 repos            │  │
@@ -331,7 +331,7 @@ cat ~/vaults/automation-brain/observability/model-weight-adjustments.md
 
 ## Go Live Confirmation
 
-**Obsidian Brain Status:** ✅ **OPERATIONAL**
+**Obsidian Ark Status:** ✅ **OPERATIONAL**
 
 All systems deployed and ready for production use:
 - ✅ Snapshots live in all repos

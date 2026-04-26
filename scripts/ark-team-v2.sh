@@ -12,7 +12,7 @@
 #   PM        → Aggregator (no AI, just rules)
 #
 # This script generates a Claude Code dispatch plan that the user invokes
-# from inside Claude Code via /brain deliver, since shell can't directly
+# from inside Claude Code via /ark deliver, since shell can't directly
 # call Agent tool — it requires Claude Code session context.
 
 set -uo pipefail
@@ -20,7 +20,7 @@ set -uo pipefail
 PROJECT_DIR="${1:?project dir required}"
 PHASE_NUM="${2:?phase number required}"
 
-VAULT_PATH="${AUTOMATION_BRAIN_PATH:-$HOME/vaults/automation-brain}"
+VAULT_PATH="${ARK_HOME:-$HOME/vaults/ark}"
 PHASE_DIR="$PROJECT_DIR/.planning/phase-$PHASE_NUM"
 TEAM_DIR="$PHASE_DIR/team"
 mkdir -p "$TEAM_DIR"
@@ -73,7 +73,7 @@ When the brain skill executes this plan, it should:
 - Bash: cd $PROJECT_DIR && npx tsc --noEmit 2>&1 > $TEAM_DIR/qa-tsc.log
 
 ### 6. PM (aggregation, no AI)
-- Bash: bash $VAULT_PATH/scripts/brain-pm-signoff.sh "$PROJECT_DIR" "$PHASE_NUM"
+- Bash: bash $VAULT_PATH/scripts/ark-pm-signoff.sh "$PROJECT_DIR" "$PHASE_NUM"
 - Reads all team artifacts, computes verdict
 - Generates CEO report
 
@@ -85,6 +85,6 @@ EOF
 echo "✅ Dispatch plan: $PHASE_DIR/team-dispatch-plan.md"
 echo ""
 echo "To execute via Claude Code subagents:"
-echo "  /brain deliver --phase $PHASE_NUM"
+echo "  /ark deliver --phase $PHASE_NUM"
 echo ""
 echo "(The brain skill in Claude Code reads this plan and dispatches to real subagents)"

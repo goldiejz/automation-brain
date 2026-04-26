@@ -1,15 +1,15 @@
 ---
-name: brain
+name: ark
 description: Autonomous project delivery system. Activate when user invokes /brain, asks to scaffold/build/deliver a project, integrates GSD/Superpowers workflows, or wants brain-managed project lifecycle (design→build→deploy→learn). The brain orchestrates GSD phases + Superpowers practices into one autonomous pipeline.
 ---
 
-# Brain Skill — Autonomous Project Delivery
+# Ark Skill — Autonomous Project Delivery
 
 The brain is the orchestration layer that converts a design (from `/superpowers:brainstorming` or `/gsd-new-project`) into a fully delivered project — scaffolded, built, tested, deployed, and continuously learning.
 
 ## When to use
 
-- User says `/brain`, `/brain create`, `/brain deliver`, `/brain init`, etc.
+- User says `/brain`, `/ark create`, `/ark deliver`, `/ark init`, etc.
 - User wants to scaffold a new project ("create a service desk for acme")
 - User wants to build phases autonomously ("run phase 1", "deliver this project")
 - User just finished a brainstorm/spec and wants to start building
@@ -18,8 +18,8 @@ The brain is the orchestration layer that converts a design (from `/superpowers:
 
 ## Vault location
 
-- Vault: `~/vaults/automation-brain/`
-- GitHub: https://github.com/goldiejz/automation-brain
+- Vault: `~/vaults/ark/`
+- GitHub: https://github.com/goldiejz/ark
 - All vault writes auto-commit + push
 
 ## The Autonomous Pipeline
@@ -30,12 +30,12 @@ DESIGN PHASE
   OR /gsd-new-project          → generates ROADMAP.md with phases
   ↓
 SCAFFOLD PHASE
-  /brain create <name> --type <type> --customer <customer>
+  /ark create <name> --type <type> --customer <customer>
   → Writes CLAUDE.md, .planning/, src/lib/rbac.ts, package.json
   → git init + GitHub repo + brain integration
   ↓
 DELIVERY PHASE (per ROADMAP phase)
-  /brain deliver
+  /ark deliver
   → For each phase:
     1. /gsd-plan-phase (or AI dispatch)
     2. /gsd-execute-phase (or Codex direct)
@@ -56,13 +56,13 @@ LEARN PHASE (continuous)
 
 ## Sub-commands
 
-### `/brain` (default) or `/brain status`
+### `/brain` (default) or `/ark status`
 
-1. Run: `bash ~/vaults/automation-brain/scripts/brain status` via Bash tool
+1. Run: `bash ~/vaults/ark/scripts/ark status` via Bash tool
 2. Show snapshot version, lesson count, decision count
-3. If no `.parent-automation/`, suggest `/brain init`
+3. If no `.parent-automation/`, suggest `/ark init`
 
-### `/brain create`
+### `/ark create`
 
 **This is the autonomous scaffold command.**
 
@@ -75,21 +75,21 @@ If user hasn't specified, ask:
 
 Then run via Bash:
 ```bash
-bash ~/vaults/automation-brain/scripts/brain create <name> \
+bash ~/vaults/ark/scripts/ark create <name> \
   --type <type> --customer <customer>
 ```
 
 This writes ALL files (CLAUDE.md, .planning/*, src/lib/rbac.ts, package.json, wrangler.toml, etc.), creates GitHub repo, and integrates brain.
 
-After: tell user `cd <path>` and run `/brain deliver` to start autonomous build.
+After: tell user `cd <path>` and run `/ark deliver` to start autonomous build.
 
-### `/brain deliver`
+### `/ark deliver`
 
 **This is the autonomous build command.**
 
 Run via Bash:
 ```bash
-bash ~/vaults/automation-brain/scripts/brain deliver
+bash ~/vaults/ark/scripts/ark deliver
 ```
 
 The script reads ROADMAP.md and runs each phase autonomously. If ROADMAP isn't detailed enough, suggest user run `/gsd-plan-phase 1` first to populate Phase 1.
@@ -103,72 +103,72 @@ For each phase, the brain:
 6. **Commits** — atomic per phase, pushed to GitHub
 
 Variants:
-- `/brain deliver --phase N` — single phase only
-- `/brain deliver --resume` — continue from last completed
-- `/brain deliver --from-spec FILE` — start from brainstorm output
+- `/ark deliver --phase N` — single phase only
+- `/ark deliver --resume` — continue from last completed
+- `/ark deliver --from-spec FILE` — start from brainstorm output
 
-### `/brain init`
+### `/ark init`
 
 For projects that aren't scaffolded yet (existing imported codebase):
 ```bash
-bash ~/vaults/automation-brain/scripts/brain init
+bash ~/vaults/ark/scripts/ark init
 ```
 
 Sets up `.parent-automation/`, copies query-brain.ts + bootstrap-v2.ts, syncs snapshot.
 
-### `/brain align`
+### `/ark align`
 
 For imported projects with non-canonical structure:
 ```bash
-bash ~/vaults/automation-brain/scripts/brain align
+bash ~/vaults/ark/scripts/ark align
 ```
 
 Standardizes: renames LEARNINGS.md → tasks/lessons.md, scans all .md files (including symlinks), generates doc-inventory.md, migrates project lessons to vault.
 
-### `/brain doctor`
+### `/ark doctor`
 
 Comprehensive health check:
 ```bash
-bash ~/vaults/automation-brain/scripts/brain doctor
+bash ~/vaults/ark/scripts/ark doctor
 ```
 
 27 checks: vault, scripts, hooks, registration, AI tools, Phase 6, project integration. Returns exit code for CI use.
 
-### `/brain bootstrap`
+### `/ark bootstrap`
 
 Manual decision logging (records that you started a project, doesn't write files):
 ```bash
-bash ~/vaults/automation-brain/scripts/brain bootstrap
+bash ~/vaults/ark/scripts/ark bootstrap
 ```
 
-Use this if you want to record a decision without scaffolding. Most users want `/brain create` instead.
+Use this if you want to record a decision without scaffolding. Most users want `/ark create` instead.
 
-### `/brain insights`
+### `/ark insights`
 
 Show cross-project patterns from Phase 6:
 ```bash
-bash ~/vaults/automation-brain/scripts/brain insights
+bash ~/vaults/ark/scripts/ark insights
 ```
 
-### `/brain lessons`
+### `/ark lessons`
 
 List all lessons in the brain:
 ```bash
-bash ~/vaults/automation-brain/scripts/brain lessons
+bash ~/vaults/ark/scripts/ark lessons
 ```
 
-### `/brain phase-6`
+### `/ark phase-6`
 
 Manually trigger Phase 6 daemon:
 ```bash
-bash ~/vaults/automation-brain/scripts/brain phase-6
+bash ~/vaults/ark/scripts/ark phase-6
 ```
 
-### `/brain sync`
+### `/ark sync`
 
 Pull latest vault from GitHub:
 ```bash
-bash ~/vaults/automation-brain/scripts/brain sync
+bash ~/vaults/ark/scripts/ark sync
 ```
 
 ## Integration with other skills
@@ -176,21 +176,21 @@ bash ~/vaults/automation-brain/scripts/brain sync
 ### After `/superpowers:brainstorming`
 The brainstorm produces a spec in chat. Invoke:
 ```
-/brain create <name> --type custom --customer <user>
+/ark create <name> --type custom --customer <user>
 # Then edit .planning/PROJECT.md with the spec
-/brain deliver
+/ark deliver
 ```
 
 ### After `/gsd-new-project`
 GSD generates ROADMAP.md with phases. Invoke:
 ```
-/brain create <name> --type <detected-type> --customer <user>
+/ark create <name> --type <detected-type> --customer <user>
 # .planning/ already populated by GSD
-/brain deliver
+/ark deliver
 ```
 
 ### Combined with `/gsd-autonomous`
-GSD has its own autonomous mode. Brain deliver complements by:
+GSD has its own autonomous mode. Ark deliver complements by:
 - Running brain-sync before each phase (gets latest patterns)
 - Running self-heal after each phase failure
 - Auto-deploying after each successful phase
@@ -198,10 +198,10 @@ GSD has its own autonomous mode. Brain deliver complements by:
 
 User can choose:
 - `/gsd-autonomous` for pure GSD workflow
-- `/brain deliver` for brain-orchestrated (calls GSD as needed)
+- `/ark deliver` for brain-orchestrated (calls GSD as needed)
 
 ### Combined with Superpowers
-Brain deliver always uses these Superpowers patterns:
+Ark deliver always uses these Superpowers patterns:
 - `/superpowers:test-driven-development` — tests first, always
 - `/superpowers:verification-before-completion` — at verify step
 - `/superpowers:requesting-code-review` — after each phase commits
@@ -211,21 +211,21 @@ Brain deliver always uses these Superpowers patterns:
 
 1. **Always invoke via Bash tool** — never try to run `brain` as a slash command
 2. **Verify .parent-automation/ exists** before deliver/bootstrap commands
-3. **Confirm with user before destructive ops** — `brain create` overwrites, `brain align` moves files
-4. **Preserve existing customizations** — brain init/align always backs up first
+3. **Confirm with user before destructive ops** — `ark create` overwrites, `ark align` moves files
+4. **Preserve existing customizations** — ark init/align always backs up first
 5. **After scaffolding** — actually edit the stub files with real content using `Write` and `Edit` tools
 6. **For deliver failures** — read self-healing/proposed/ and apply fixes manually if auto-apply didn't work
 7. **Auto-commits are normal** — vault commits to GitHub continuously without user prompt
 
 ## Resources
 
-- Vault: `~/vaults/automation-brain/`
-- Scripts: `~/vaults/automation-brain/scripts/brain*.sh`
+- Vault: `~/vaults/ark/`
+- Scripts: `~/vaults/ark/scripts/brain*.sh`
 - Hooks: `~/.claude/hooks/brain-*.sh`
-- Templates: `~/vaults/automation-brain/templates/`
-- Lessons: `~/vaults/automation-brain/lessons/`
-- Phase 6 outputs: `~/vaults/automation-brain/observability/`
-- Self-heal proposals: `~/vaults/automation-brain/self-healing/proposed/`
+- Templates: `~/vaults/ark/templates/`
+- Lessons: `~/vaults/ark/lessons/`
+- Phase 6 outputs: `~/vaults/ark/observability/`
+- Self-heal proposals: `~/vaults/ark/self-healing/proposed/`
 
 ## Flow Summary
 
@@ -233,8 +233,8 @@ User says: "build me an acme service desk"
 
 You:
 1. Confirm: type=service-desk, customer=acme
-2. Run: `! brain create acme-service-desk --type service-desk --customer acme`
+2. Run: `! ark create acme-service-desk --type service-desk --customer acme`
 3. Help user define real scope: Use `Edit` tool to update `.planning/PROJECT.md` and `.planning/ROADMAP.md`
-4. Run: `! brain deliver` (kicks off autonomous build)
+4. Run: `! ark deliver` (kicks off autonomous build)
 5. Monitor progress, intervene if self-heal escalates
 6. Final: GitHub repo with working deployed app

@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# brain validate — drift detection for cached templates
+# ark validate — drift detection for cached templates
 #
 # Periodically re-runs cached prompts through current AI to detect drift.
 # If output diverges significantly from cached, flags template as stale.
 #
 # Usage:
-#   brain validate              # quick check (sample 3 cached templates)
-#   brain validate --full       # validate all cache entries
-#   brain validate --query <id> # validate specific cached query
+#   ark validate              # quick check (sample 3 cached templates)
+#   ark validate --full       # validate all cache entries
+#   ark validate --query <id> # validate specific cached query
 
 set -uo pipefail
 
-VAULT_PATH="${AUTOMATION_BRAIN_PATH:-$HOME/vaults/automation-brain}"
+VAULT_PATH="${ARK_HOME:-$HOME/vaults/ark}"
 CACHE_DIR="$VAULT_PATH/cache/query-responses"
 DRIFT_LOG="$VAULT_PATH/observability/template-drift.md"
 
@@ -26,7 +26,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-echo "🔍 Brain Validate — Template Drift Detection"
+echo "🔍 Ark Validate — Template Drift Detection"
 echo ""
 
 # Initialize drift log

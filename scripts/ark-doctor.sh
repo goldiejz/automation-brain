@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# brain doctor — comprehensive health check
+# ark doctor — comprehensive health check
 #
 # Verifies:
 # - Vault exists and is git-tracked
@@ -13,7 +13,7 @@
 
 set -uo pipefail
 
-VAULT_PATH="${AUTOMATION_BRAIN_PATH:-$HOME/vaults/automation-brain}"
+VAULT_PATH="${ARK_HOME:-$HOME/vaults/ark}"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -45,7 +45,7 @@ check() {
   fi
 }
 
-echo "🩺 Brain Doctor — Health Check"
+echo "🩺 Ark Doctor — Health Check"
 echo ""
 
 # === Vault checks ===
@@ -63,14 +63,14 @@ check "Templates directory" "[[ -d '$VAULT_PATH/templates/parent-automation' ]]"
 # === Scripts ===
 echo ""
 echo "CLI scripts:"
-for script in brain brain-sync.sh brain-align.sh extract-learnings.sh self-heal.sh; do
+for script in brain ark-sync.sh ark-align.sh extract-learnings.sh self-heal.sh; do
   check "$script executable" "[[ -x '$VAULT_PATH/scripts/$script' ]]"
 done
 
 # === Hooks ===
 echo ""
 echo "Hooks:"
-for hook in brain-session-start.sh brain-session-end.sh brain-extract-learnings.sh brain-error-monitor.sh; do
+for hook in ark-session-start.sh ark-session-end.sh ark-extract-learnings.sh ark-error-monitor.sh; do
   check "$hook in ~/.claude/hooks/" "[[ -x \"\$HOME/.claude/hooks/$hook\" ]]"
 done
 
@@ -86,7 +86,7 @@ check "Stop hook (error monitor) registered" "grep -q brain-error-monitor '$SETT
 # === Skill ===
 echo ""
 echo "Skill:"
-check "Brain skill installed" "[[ -f \"\$HOME/.claude/skills/brain/SKILL.md\" ]]"
+check "Ark skill installed" "[[ -f \"\$HOME/.claude/skills/brain/SKILL.md\" ]]"
 
 # === CLI tools ===
 echo ""
@@ -125,13 +125,13 @@ echo ""
 echo "Project integration (current dir: $(pwd)):"
 PROJECT_DIR="$(pwd)"
 if [[ -d "$PROJECT_DIR/.parent-automation" ]]; then
-  check "Brain integrated in this project" "[[ -d '$PROJECT_DIR/.parent-automation' ]]"
+  check "Ark integrated in this project" "[[ -d '$PROJECT_DIR/.parent-automation' ]]"
   check "Snapshot present" "[[ -d '$PROJECT_DIR/.parent-automation/brain-snapshot' ]]"
   check "Decision log writable" "[[ -w '$PROJECT_DIR/.planning/bootstrap-decisions.jsonl' ]]" warn
   DECISIONS=$(wc -l < "$PROJECT_DIR/.planning/bootstrap-decisions.jsonl" 2>/dev/null | tr -d ' ' || echo 0)
   echo "  Decisions in this project: $DECISIONS"
 else
-  echo -e "  ${YELLOW}⚠️${NC}  Not integrated. Run: brain init"
+  echo -e "  ${YELLOW}⚠️${NC}  Not integrated. Run: ark init"
 fi
 
 # === Summary ===
@@ -142,11 +142,11 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 
 if [[ $FAIL -gt 0 ]]; then
   echo ""
-  echo "🛠️  To repair: review failures above, or check ~/vaults/automation-brain/self-healing/"
+  echo "🛠️  To repair: review failures above, or check ~/vaults/ark/self-healing/"
   exit 1
 elif [[ $WARN -gt 0 ]]; then
   echo ""
-  echo "⚠️  Some optional features unavailable. Brain will use fallbacks."
+  echo "⚠️  Some optional features unavailable. Ark will use fallbacks."
   exit 0
 else
   echo ""

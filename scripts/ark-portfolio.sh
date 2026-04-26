@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# brain portfolio — CEO dashboard across all projects
+# ark portfolio — CEO dashboard across all projects
 #
 # Usage:
-#   brain portfolio                # all projects in ~/code/
-#   brain portfolio /path/to/dir   # different parent dir
-#   brain portfolio --watch        # auto-refresh
+#   ark portfolio                # all projects in ~/code/
+#   ark portfolio /path/to/dir   # different parent dir
+#   ark portfolio --watch        # auto-refresh
 
 set -uo pipefail
 
@@ -17,7 +17,7 @@ BLUE='\033[0;34m'
 PURPLE='\033[0;35m'
 NC='\033[0m'
 
-echo "🧠 Brain Portfolio — CEO Dashboard"
+echo "🧠 Ark Portfolio — CEO Dashboard"
 echo "Scanning: $SEARCH_DIR"
 echo ""
 
@@ -107,7 +107,7 @@ echo "  Total tokens:    $(printf "%'d" $TOTAL_TOKENS) (this month)"
 echo ""
 
 # Cross-project insights
-VAULT_PATH="${AUTOMATION_BRAIN_PATH:-$HOME/vaults/automation-brain}"
+VAULT_PATH="${ARK_HOME:-$HOME/vaults/ark}"
 if [[ -f "$VAULT_PATH/observability/cross-customer-insights.md" ]]; then
   echo "Latest cross-project insights (top 5):"
   grep -A1 "^### " "$VAULT_PATH/observability/cross-customer-insights.md" | head -10 | sed 's/^/  /'

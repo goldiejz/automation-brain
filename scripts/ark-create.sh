@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# brain create — scaffold a new project from cached templates
+# ark create — scaffold a new project from cached templates
 #
 # Three independent dimensions:
 #   --type    what the project DOES (service-desk, revops, ops-intel, custom, ...)
@@ -7,7 +7,7 @@
 #   --deploy  where it RUNS (cloudflare-workers, vercel, aws-lambda, none, ...)
 #
 # Usage:
-#   brain create <name> --type <type> --customer <customer> [options]
+#   ark create <name> --type <type> --customer <customer> [options]
 #
 # Options:
 #   --stack <stack>     Technical stack (auto-detected if omitted)
@@ -23,7 +23,7 @@
 
 set -uo pipefail
 
-VAULT_PATH="${AUTOMATION_BRAIN_PATH:-$HOME/vaults/automation-brain}"
+VAULT_PATH="${ARK_HOME:-$HOME/vaults/ark}"
 
 PROJECT_NAME=""
 PROJECT_TYPE=""
@@ -41,7 +41,7 @@ while [[ $# -gt 0 ]]; do
     --deploy) DEPLOY="$2"; shift 2 ;;
     --help|-h)
       cat <<EOF
-Usage: brain create <name> --type <type> --customer <customer> [options]
+Usage: ark create <name> --type <type> --customer <customer> [options]
 
 Required:
   --type      service-desk | revops | ops-intelligence | marketplace |
@@ -62,16 +62,16 @@ Optional:
   --path      Where to create the project (default: ~/code/)
 
 Examples:
-  brain create acme-sd --type service-desk --customer acme \\
+  ark create acme-sd --type service-desk --customer acme \\
     --stack vite-react-hono --deploy cloudflare-workers
 
-  brain create my-cli --type cli-tool --customer me \\
+  ark create my-cli --type cli-tool --customer me \\
     --stack node-cli --deploy none
 
-  brain create internal --type internal-tool --customer strategix \\
+  ark create internal --type internal-tool --customer strategix \\
     --stack nextjs --deploy vercel
 
-See ~/vaults/automation-brain/templates/STACKS.md for full list.
+See ~/vaults/ark/templates/STACKS.md for full list.
 EOF
       exit 0
       ;;
@@ -85,7 +85,7 @@ EOF
 done
 
 if [[ -z "$PROJECT_NAME" ]] || [[ -z "$PROJECT_TYPE" ]] || [[ -z "$CUSTOMER" ]]; then
-  echo "❌ Missing required args. Run: brain create --help"
+  echo "❌ Missing required args. Run: ark create --help"
   exit 1
 fi
 
@@ -186,7 +186,7 @@ All route guards use \`requireRole(userRole, requiredRole)\`. Never inline role 
 
 Required reading before any non-trivial change:
 
-1. \`~/vaults/automation-brain/STRUCTURE.md\` — canonical structure
+1. \`~/vaults/ark/STRUCTURE.md\` — canonical structure
 2. This file
 3. \`.planning/STATE.md\` — live truth
 4. \`.planning/PROJECT.md\` — durable purpose
@@ -194,7 +194,7 @@ Required reading before any non-trivial change:
 6. \`tasks/lessons.md\` — past corrections (don't regress)
 7. \`tasks/todo.md\` — active work
 
-Brain integration: \`.parent-automation/brain-snapshot/\` provides cached templates and 80+ lessons. Run \`brain status\` for current state.
+Ark integration: \`.parent-automation/ark-snapshot/\` provides cached templates and 80+ lessons. Run \`ark status\` for current state.
 
 ## Anti-Patterns
 
@@ -241,7 +241,7 @@ cat > "$PROJECT_DIR/.planning/STATE.md" <<EOF
 **Status:** scaffolded
 
 ## Phase 0: Bootstrap (current)
-- [x] Project created via \`brain create\`
+- [x] Project created via \`ark create\`
 - [ ] Phase 1 planning complete
 - [ ] Initial implementation
 EOF
@@ -256,7 +256,7 @@ cat > "$PROJECT_DIR/.planning/ROADMAP.md" <<EOF
 # Roadmap
 
 ## Phase 0 — Bootstrap (current)
-- [x] Scaffolded via brain create
+- [x] Scaffolded via ark create
 - [ ] Configure environment
 - [ ] Set up CI/CD
 
@@ -281,7 +281,7 @@ cat > "$PROJECT_DIR/.planning/REQUIREMENTS.md" <<EOF
 
 | ID | Requirement | Status | Evidence |
 |----|-------------|--------|----------|
-| R-001 | Brain integration | done | .parent-automation/ exists |
+| R-001 | Ark integration | done | .parent-automation/ exists |
 EOF
 
 touch "$PROJECT_DIR/.planning/bootstrap-decisions.jsonl"
@@ -295,7 +295,7 @@ cat > "$PROJECT_DIR/tasks/todo.md" <<EOF
 ## Active
 
 - [ ] Define Phase 1 scope (update PROJECT.md + ROADMAP.md)
-- [ ] Run \`brain deliver\` to start autonomous build
+- [ ] Run \`ark deliver\` to start autonomous build
 
 ## Backlog
 
@@ -583,7 +583,7 @@ esac
 case "$DEPLOY" in
   cloudflare-workers)
     # No bindings by default — wrangler can deploy without them
-    # User adds bindings via `brain secrets init` after database is created
+    # User adds bindings via `ark secrets init` after database is created
     cat > "$PROJECT_DIR/wrangler.toml" <<EOF
 name = "$PROJECT_NAME"
 main = "src/worker.ts"
@@ -605,7 +605,7 @@ EOF
 # AUTH_SECRET=
 # DATABASE_URL=
 EOF
-    echo -e "  ${GREEN}✅${NC} Cloudflare Workers config (no bindings — add via brain secrets init)"
+    echo -e "  ${GREEN}✅${NC} Cloudflare Workers config (no bindings — add via ark secrets init)"
     ;;
 
   cloudflare-pages)
@@ -689,8 +689,8 @@ EOF
 
 [TODO: Configure $DEPLOY deployment]
 
-Brain has not yet templated this deployment target.
-Run /brain phase-6 to learn from this project once deployment is set up.
+Ark has not yet templated this deployment target.
+Run /ark phase-6 to learn from this project once deployment is set up.
 EOF
     mkdir -p "$PROJECT_DIR/.deploy"
     mv "$PROJECT_DIR/.deploy/$DEPLOY.md" "$PROJECT_DIR/.deploy/" 2>/dev/null || true
@@ -720,19 +720,19 @@ if [[ ! -f "$PROJECT_DIR/tsconfig.json" ]]; then
 EOF
 fi
 
-# === Step 5: Brain integration ===
+# === Step 5: Ark integration ===
 echo ""
 echo "Initializing brain integration..."
-bash "$VAULT_PATH/scripts/brain-sync.sh" "$PROJECT_DIR" >/dev/null 2>&1
+bash "$VAULT_PATH/scripts/ark-sync.sh" "$PROJECT_DIR" >/dev/null 2>&1
 mkdir -p "$PROJECT_DIR/.parent-automation"
 cp "$VAULT_PATH/templates/parent-automation/"*.ts "$PROJECT_DIR/.parent-automation/" 2>/dev/null
 cp "$VAULT_PATH/templates/parent-automation/tsconfig.json" "$PROJECT_DIR/.parent-automation/" 2>/dev/null
-echo -e "  ${GREEN}✅${NC} Brain integrated"
+echo -e "  ${GREEN}✅${NC} Ark integrated"
 
 # === Step 6: First commit ===
 cd "$PROJECT_DIR"
 git add -A
-git commit -m "Initial scaffold via brain create
+git commit -m "Initial scaffold via ark create
 
 Type: $PROJECT_TYPE
 Customer: $CUSTOMER
@@ -761,6 +761,6 @@ echo ""
 echo "Next steps:"
 echo "  cd $PROJECT_DIR"
 echo "  # Edit .planning/PROJECT.md and ROADMAP.md to define scope"
-echo "  brain deliver         # Run autonomous delivery"
+echo "  ark deliver         # Run autonomous delivery"
 echo "  npm install           # Install deps"
 echo "  npm run dev           # Start dev server"

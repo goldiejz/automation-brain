@@ -4,7 +4,7 @@
  * Reads bootstrap decision logs from all projects, detects patterns, updates lesson effectiveness.
  * Runs weekly to feed self-improving loop.
  *
- * Usage (from ~/vaults/automation-brain/):
+ * Usage (from ~/vaults/ark/):
  *   npx ts-node observability/phase-6-daemon.ts
  */
 

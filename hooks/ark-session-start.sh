@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Brain SessionStart hook — auto-detect and sync brain when entering a project
+# Ark SessionStart hook — auto-detect and sync brain when entering a project
 #
 # Behavior:
 # - If CWD has .parent-automation/, auto-pull latest vault and refresh snapshot
 # - If CWD doesn't have .parent-automation/ but has typical project markers
-#   (package.json, .git, src/), suggest 'brain init'
+#   (package.json, .git, src/), suggest 'ark init'
 # - Silent if CWD is not a project
 #
 # This makes brain a fundamental, automatic part of every Claude Code session.
@@ -16,7 +16,7 @@ LOG_FILE="$HOME/.claude/hooks/brain-hook-debug.log"
 # NOTE: deliberately NOT using 'set -e' — failed [[ checks would terminate
 # the script and silently drop our context output before stdout flushes.
 
-VAULT_PATH="${AUTOMATION_BRAIN_PATH:-$HOME/vaults/automation-brain}"
+VAULT_PATH="${ARK_HOME:-$HOME/vaults/ark}"
 
 # Resolve project dir: prefer Claude Code env var, fall back to pwd
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-${CLAUDE_WORKING_DIR:-$(pwd)}}"
@@ -70,7 +70,7 @@ if [[ "$HAS_PARENT_AUTOMATION" == "true" ]]; then
   (bash "$VAULT_PATH/scripts/brain-sync.sh" "$PROJECT_DIR" > /tmp/brain-sync-$$.log 2>&1 &) 2>/dev/null
 
   # Build status block
-  SNAPSHOT_MANIFEST="$PROJECT_DIR/.parent-automation/brain-snapshot/SNAPSHOT-MANIFEST.json"
+  SNAPSHOT_MANIFEST="$PROJECT_DIR/.parent-automation/ark-snapshot/SNAPSHOT-MANIFEST.json"
   if [[ -f "$SNAPSHOT_MANIFEST" ]]; then
     LESSONS=$(grep -o '"lessons":[ ]*[0-9]*' "$SNAPSHOT_MANIFEST" | head -1 | grep -o '[0-9]*')
     DECISIONS=0
@@ -81,10 +81,10 @@ if [[ "$HAS_PARENT_AUTOMATION" == "true" ]]; then
 Project: $(basename "$PROJECT_DIR")
 Snapshot: $LESSONS lessons available (vault: $VAULT_PATH)
 Decisions logged: $DECISIONS
-Available commands: /brain status, /brain bootstrap, /brain insights, /brain scaffold, /brain dev
+Available commands: /ark status, /ark bootstrap, /ark insights, /brain scaffold, /ark dev
 Vault syncing in background.
 The brain provides cached templates, cross-project lessons, and intelligent model routing for this project."
-    VISIBLE="🧠 Brain Active: $(basename "$PROJECT_DIR") · $LESSONS lessons · $DECISIONS decisions logged · /brain status, /brain bootstrap, /brain insights, /brain scaffold"
+    VISIBLE="🧠 Ark Active: $(basename "$PROJECT_DIR") · $LESSONS lessons · $DECISIONS decisions logged · /ark status, /ark bootstrap, /ark insights, /brain scaffold"
     emit_context "$CONTEXT" "$VISIBLE"
   fi
   exit 0
@@ -94,10 +94,10 @@ fi
 if [[ "$HAS_PROJECT_MARKERS" == "true" ]]; then
   CONTEXT="=== BRAIN AVAILABLE ===
 This project has no .parent-automation/ directory — brain integration not active.
-To activate: invoke /brain init
+To activate: invoke /ark init
 Benefits: 70% token reduction via cached templates, access to 55+ cross-project lessons, automatic decision logging that improves the brain over time.
 The user explicitly requested brain to be a fundamental part of every project workflow."
-  VISIBLE="🧠 Brain Available — this project has no .parent-automation/. Run /brain init to activate (70% token reduction, 55+ cross-project lessons)"
+  VISIBLE="🧠 Ark Available — this project has no .parent-automation/. Run /ark init to activate (70% token reduction, 55+ cross-project lessons)"
   emit_context "$CONTEXT" "$VISIBLE"
   exit 0
 fi

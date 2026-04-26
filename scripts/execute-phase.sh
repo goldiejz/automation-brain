@@ -19,7 +19,7 @@ set -uo pipefail
 PROJECT_DIR="${1:?project dir required}"
 PHASE_NUM="${2:?phase number required}"
 
-VAULT_PATH="${AUTOMATION_BRAIN_PATH:-$HOME/vaults/automation-brain}"
+VAULT_PATH="${ARK_HOME:-$HOME/vaults/ark}"
 PHASE_DIR="$PROJECT_DIR/.planning/phase-$PHASE_NUM"
 PLAN_FILE="$PHASE_DIR/PLAN.md"
 CONTEXT_FILE="$PHASE_DIR/.context-$$.md"
@@ -192,7 +192,7 @@ Constraints:
   # Get recommended model for current tier (called from project context)
   local recommended_model=""
   if cd "$PROJECT_DIR" 2>/dev/null; then
-    recommended_model=$(bash "$VAULT_PATH/scripts/brain-budget.sh" --route engineering 2>/dev/null || echo "codex")
+    recommended_model=$(bash "$VAULT_PATH/scripts/ark-budget.sh" --route engineering 2>/dev/null || echo "codex")
   fi
   log "Tier-recommended model: $recommended_model"
 
@@ -218,7 +218,7 @@ Constraints:
     if [[ -n "$output" ]]; then
       local est_tokens=$(( ${#output} / 4 + ${#prompt} / 4 ))
       if cd "$PROJECT_DIR" 2>/dev/null; then
-        bash "$VAULT_PATH/scripts/brain-budget.sh" --record "$est_tokens" "codex" 2>/dev/null | tail -1
+        bash "$VAULT_PATH/scripts/ark-budget.sh" --record "$est_tokens" "codex" 2>/dev/null | tail -1
       fi
     fi
   fi

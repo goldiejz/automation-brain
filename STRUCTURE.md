@@ -2,11 +2,11 @@
 
 **Status:** v1.0 — locked 2026-04-25
 
-This is the authoritative structure for both the vault and any project that uses it. `brain align` enforces this on imported projects.
+This is the authoritative structure for both the vault and any project that uses it. `ark align` enforces this on imported projects.
 
 ---
 
-## Vault Structure (`~/vaults/automation-brain/`)
+## Vault Structure (`~/vaults/ark/`)
 
 ```
 automation-brain/
@@ -69,7 +69,7 @@ automation-brain/
 │   └── applied/                 Auto-applied (high confidence)
 │
 ├── templates/                   PROJECT-INSTALLABLE FILES
-│   └── parent-automation/       What brain init copies into projects
+│   └── parent-automation/       What ark init copies into projects
 │       ├── query-brain.ts
 │       ├── new-project-bootstrap-v2.ts
 │       └── tsconfig.json
@@ -129,12 +129,12 @@ your-project/
 
 ---
 
-## What `brain align` Does
+## What `ark align` Does
 
-When run on an imported project, `brain align`:
+When run on an imported project, `ark align`:
 
 1. **Detects existing structure** — scans for `.planning/`, `tasks/`, `lessons.md`, `CLAUDE.md`
-2. **Migrates lessons** — moves any project-local `tasks/lessons.md` entries to `~/vaults/automation-brain/lessons/by-customer/<customer>/`
+2. **Migrates lessons** — moves any project-local `tasks/lessons.md` entries to `~/vaults/ark/lessons/by-customer/<customer>/`
 3. **Standardizes filenames** — renames non-canonical files (e.g., `LEARNINGS.md` → `tasks/lessons.md`)
 4. **Backfills missing files** — creates stub `STATE.md`, `PROJECT.md`, `ALPHA.md` from templates if missing
 5. **Validates conventions** — checks for currency suffix, inline RBAC, tenant scoping per `doctrine/shared-conventions.md`

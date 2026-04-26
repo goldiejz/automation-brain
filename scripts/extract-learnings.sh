@@ -17,7 +17,7 @@ TRANSCRIPT="${1:?transcript path required}"
 PROJECT_DIR="${2:-unknown}"
 SESSION_ID="${3:-$(date +%s)}"
 
-VAULT_PATH="${AUTOMATION_BRAIN_PATH:-$HOME/vaults/automation-brain}"
+VAULT_PATH="${ARK_HOME:-$HOME/vaults/ark}"
 LESSONS_DIR="$VAULT_PATH/lessons/auto-captured"
 mkdir -p "$LESSONS_DIR"
 

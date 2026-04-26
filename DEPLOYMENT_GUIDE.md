@@ -1,4 +1,4 @@
-# Deployment Guide: Obsidian Brain + Dynamic Model Registry
+# Deployment Guide: Obsidian Ark + Dynamic Model Registry
 
 **Status:** Ready for immediate deployment  
 **Timeline:** 2-3 days full integration  
@@ -116,14 +116,14 @@ systemctl reload cron  # or: launchctl unload/load on macOS
 ### Create log directory:
 
 ```bash
-mkdir -p ~/vaults/automation-brain/logs
-chmod 755 ~/vaults/automation-brain/logs
+mkdir -p ~/vaults/ark/logs
+chmod 755 ~/vaults/ark/logs
 ```
 
 ### Manual test run:
 
 ```bash
-cd ~/vaults/automation-brain
+cd ~/vaults/ark
 npx ts-node observability/phase-6-daemon.ts
 npx ts-node observability/phase-6-daemon-extended.ts
 ```
@@ -155,7 +155,7 @@ export { DynamicModelRegistry } from '../observability/phase-7-model-registry';
 ### Test tier resolver:
 
 ```bash
-cd ~/vaults/automation-brain
+cd ~/vaults/ark
 npx ts-node observability/phase-7-multi-model-resolver.ts
 # Should output model recommendations for 5 demo tasks
 ```
@@ -204,7 +204,7 @@ head -1 ~/.planning/bootstrap-decisions.jsonl
 ### Run Phase 6 observability:
 
 ```bash
-cd ~/vaults/automation-brain
+cd ~/vaults/ark
 npx ts-node observability/phase-6-daemon.ts
 # Should analyze Strategix + Customer A bootstraps
 # Should detect: "ServiceDesk is universal decision (100% of projects)"
@@ -242,10 +242,10 @@ npx ts-node observability/phase-6-daemon.ts
 
 If time is limited, deploy in this order (each step is independent):
 
-1. **Day 1:** Part 1 (env setup) + Part 2 (snapshots) → Brain becomes functional
+1. **Day 1:** Part 1 (env setup) + Part 2 (snapshots) → Ark becomes functional
 2. **Day 2:** Part 3 (Phase 6 cron) → Self-improving loop starts
 3. **Day 3:** Part 4 (Phase 7 resolver) → Dynamic model selection active
-4. **Ongoing:** Part 5 (customer onboarding) → Brain compound improves
+4. **Ongoing:** Part 5 (customer onboarding) → Ark compound improves
 
 **Minimum to "live":** Parts 1-2 only. Snapshots work, bootstrap v2 works, loop just hasn't started yet.
 
@@ -295,7 +295,7 @@ rm /etc/cron.d/phase-6-observability
 
 ```bash
 # Verify snapshot exists
-ls -la .parent-automation/brain-snapshot/SNAPSHOT-MANIFEST.json
+ls -la .parent-automation/ark-snapshot/SNAPSHOT-MANIFEST.json
 ```
 
 ### Phase 6 daemon doesn't run

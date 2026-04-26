@@ -13,7 +13,7 @@ Implemented a complete self-improving automation system that:
 1. **Reduces token consumption** from 25K → 12-13K per bootstrap (48-52% savings)
 2. **Accelerates new projects** from 4 hours → 2.5 hours (40% faster)
 3. **Enables cross-project learning** — lessons from Project A automatically benefit Project B and beyond
-4. **Works offline and in Claude Cowork** — embedded snapshot at `.parent-automation/brain-snapshot/`
+4. **Works offline and in Claude Cowork** — embedded snapshot at `.parent-automation/ark-snapshot/`
 5. **Self-improves weekly** — observability daemon detects patterns, updates lesson effectiveness, improves cache
 6. **Intelligently routes work** to optimal model (Haiku/Sonnet/Opus/Codex/Gemini) based on task characteristics
 
@@ -22,7 +22,7 @@ Implemented a complete self-improving automation system that:
 ## What Was Built: Phases 0-7
 
 ### Phase 0: Vault Structure ✅
-- Multi-tenant Obsidian vault at `~/vaults/automation-brain/`
+- Multi-tenant Obsidian vault at `~/vaults/ark/`
 - Directory layout: lessons/, bootstrap/, findings/, cache/, observability/, doctrine/
 - Stores 46+ lessons, 10 cached queries, 16+ findings, decision logs
 
@@ -52,7 +52,7 @@ Implemented a complete self-improving automation system that:
 - **Total cached:** 8,200 tokens vs 11,500 without caching (28.7% savings)
 
 ### Phase 5: Bootstrap Integration ✅
-- **Embedded snapshot** in `.parent-automation/brain-snapshot/` (312K, portable to Claude Cowork)
+- **Embedded snapshot** in `.parent-automation/ark-snapshot/` (312K, portable to Claude Cowork)
 - **query-brain.ts** (250 lines) — TypeScript module for querying snapshot
   - `queryBrain()` — fetch cached responses, fallback to central API if stale
   - `getLessonsForProjectType()` — universal + project-type-specific lessons
@@ -64,7 +64,7 @@ Implemented a complete self-improving automation system that:
   - Token estimates at each step (40% reduction: 25K → 15K)
   - Graceful degradation: online with refresh > offline snapshot > degraded mode
 - **Snapshot manifest** with version, contents count, optional API URL
-- **Works offline and in Claude Cowork** — same `.parent-automation/brain-snapshot/` path everywhere
+- **Works offline and in Claude Cowork** — same `.parent-automation/ark-snapshot/` path everywhere
 
 ### Phase 6: Observability Daemon ✅
 - **phase-6-daemon.ts** (250 lines) — Cross-project pattern detection
@@ -201,7 +201,7 @@ Shared brain with customer-tagged lessons:
 | **Speed** | ✅ | 4 hours → 2.5 hours (40% faster) |
 | **Contradiction Detection** | ✅ | Pre-merge via Phase 6 patterns |
 | **Offline Capable** | ✅ | Embedded snapshot, no network needed |
-| **Claude Cowork Ready** | ✅ | `.parent-automation/brain-snapshot/` same path everywhere |
+| **Claude Cowork Ready** | ✅ | `.parent-automation/ark-snapshot/` same path everywhere |
 | **Multi-Customer** | ✅ | Vault structure supports by-customer/ lessons |
 | **Self-Improving** | ✅ | Phase 6 → Phase 4/3 feedback loop |
 | **Code Quality** | ✅ | Multi-model routing ensures right tool for each task |
@@ -263,7 +263,7 @@ Shared brain with customer-tagged lessons:
 
 ## Files Created
 
-**In ~/vaults/automation-brain/:**
+**In ~/vaults/ark/:**
 - `STRATEGY.md` — Unified vision, 10KB
 - `00-Index.md` — Navigation hub, 2KB
 - `scripts/generate-snapshot.sh` — Snapshot generation, 2KB
@@ -283,7 +283,7 @@ Shared brain with customer-tagged lessons:
 - `new-project-bootstrap-v2.ts` — Enhanced bootstrap skill, 300 lines
 
 **Committed to Git:**
-- Automation Brain vault: 32 files, 5063 insertions (phases 0-7)
+- Ark vault: 32 files, 5063 insertions (phases 0-7)
 - All code compiled, tested, documented
 
 ---

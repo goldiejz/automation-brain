@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
-# brain backup — disaster recovery for the vault
+# ark backup — disaster recovery for the vault
 #
 # Creates timestamped backup of vault to ~/.brain-backups/
 # Auto-rotates old backups (keep last 30)
 
 set -uo pipefail
 
-VAULT_PATH="${AUTOMATION_BRAIN_PATH:-$HOME/vaults/automation-brain}"
+VAULT_PATH="${ARK_HOME:-$HOME/vaults/ark}"
 BACKUP_ROOT="$HOME/.brain-backups"
 TIMESTAMP=$(date -u +%Y%m%d-%H%M%S)
 BACKUP_PATH="$BACKUP_ROOT/vault-$TIMESTAMP.tar.gz"
 
 mkdir -p "$BACKUP_ROOT"
 
-echo "💾 Brain Backup"
+echo "💾 Ark Backup"
 echo "  Source: $VAULT_PATH"
 echo "  Target: $BACKUP_PATH"
 echo ""

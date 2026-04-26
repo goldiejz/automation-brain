@@ -17,7 +17,7 @@ set -uo pipefail
 ERROR_LOG="${1:?error log path required}"
 CONTEXT="${2:-}"
 
-VAULT_PATH="${AUTOMATION_BRAIN_PATH:-$HOME/vaults/automation-brain}"
+VAULT_PATH="${ARK_HOME:-$HOME/vaults/ark}"
 HEALING_DIR="$VAULT_PATH/self-healing"
 PROPOSED_DIR="$HEALING_DIR/proposed"
 APPLIED_DIR="$HEALING_DIR/applied"

@@ -1,5 +1,5 @@
 ---
-title: "Obsidian Brain Strategy — Self-Improving Automation for Local + Claude Cowork"
+title: "Obsidian Ark Strategy — Self-Improving Automation for Local + Claude Cowork"
 date: 2026-04-25
 status: "Approved for implementation"
 scope: "All projects (Strategix + all customers, local + Claude Cowork)"
@@ -84,7 +84,7 @@ When Project B is created/imported:
    → Contains: All lessons, all cached queries, all templates
    → Size: ~5 MB (compressed)
 
-2. Store snapshot in project: .parent-automation/brain-snapshot/
+2. Store snapshot in project: .parent-automation/ark-snapshot/
 
 3. Bootstrap runs, queries local snapshot
    → No network needed (works offline, Claude Cowork)
@@ -98,7 +98,7 @@ When Project B is created/imported:
 ```
 
 **Portable across environments:**
-- Local: snapshot in `.parent-automation/brain-snapshot/`
+- Local: snapshot in `.parent-automation/ark-snapshot/`
 - Claude Cowork: same path, same queries, same results
 - Offline: no API calls needed, snapshot is sufficient
 - Online: optional refresh from central brain (if changes exist)
@@ -176,7 +176,7 @@ Is it cached? → No: use Opus (8000 tokens, $0.40)
 
 **Flow:**
 1. Developer runs: `/bootstrap service-desk`
-2. Skill queries `.parent-automation/brain-snapshot/`
+2. Skill queries `.parent-automation/ark-snapshot/`
 3. Snapshot returns: templates, lessons, cached queries
 4. Bootstrap completes in 2.5 hours (vs 4 without brain)
 5. Decision log recorded (feeds Phase 6)
@@ -195,7 +195,7 @@ ProjectInCowork/
 1. Project created in Claude Cowork
 2. `parent-automation init` runs
 3. Downloads snapshot from `brain.strategix.internal` (or uses fallback)
-4. Stores in `.parent-automation/brain-snapshot/`
+4. Stores in `.parent-automation/ark-snapshot/`
 5. Bootstrap uses local snapshot (identical to local flow)
 6. Works offline, no ~/vaults access needed
 

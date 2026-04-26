@@ -116,7 +116,7 @@ cat > "$PROJECT_DIR/.planning/phase-$PHASE_NUM-ceo-report.md" <<EOF
 | PM | $PM_VERDICT |
 
 ## Next Step
-$([ "$PM_VERDICT" == "APPROVED" ] && echo "Run \`brain deliver --phase $((PHASE_NUM + 1))\`" || echo "Address blockers in team/pm-signoff.md, then retry")
+$([ "$PM_VERDICT" == "APPROVED" ] && echo "Run \`ark deliver --phase $((PHASE_NUM + 1))\`" || echo "Address blockers in team/pm-signoff.md, then retry")
 
 ## Detailed Reports
 .planning/phase-$PHASE_NUM/team/*.md

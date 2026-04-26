@@ -10,7 +10,7 @@ audience: ["Local projects", "Claude Cowork projects", "Multi-customer instances
 
 ## Problem
 
-Phase 5 design assumes local file reads (`~/vaults/automation-brain/`). This breaks for:
+Phase 5 design assumes local file reads (`~/vaults/ark/`). This breaks for:
 - Claude Cowork projects (no local ~/vaults)
 - Multi-customer instances (multiple brains vs one shared brain)
 - Offline/disconnected work (can't query remote brain)
@@ -91,7 +91,7 @@ POST /api/query
 Before Phase 5 wiring, generate `.parent-automation/brain-snapshot/`:
 
 ```bash
-# In ~/vaults/automation-brain/
+# In ~/vaults/ark/
 npm run generate-snapshot \
   --output ~/code/strategix-servicedesk/.parent-automation/brain-snapshot/ \
   --project-type service-desk \

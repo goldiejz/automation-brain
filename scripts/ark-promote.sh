@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# brain promote — gated production deployment
+# ark promote — gated production deployment
 #
 # Usage:
-#   brain promote --to staging              # autonomous
-#   brain promote --to production --confirm # human-confirmed
-#   brain promote --to production --dry-run # show what would deploy
+#   ark promote --to staging              # autonomous
+#   ark promote --to production --confirm # human-confirmed
+#   ark promote --to production --dry-run # show what would deploy
 #
 # Production NEVER deploys without --confirm flag.
 # Staging deploys are autonomous.
@@ -32,7 +32,7 @@ RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-echo "🚀 Brain Promote"
+echo "🚀 Ark Promote"
 echo "  Project: $(basename "$PROJECT_DIR")"
 echo "  Target: $TARGET"
 
@@ -53,7 +53,7 @@ if [[ "$TARGET" == "production" ]] && [[ "$CONFIRMED" != "true" ]]; then
   echo "  [ ] Customer/stakeholders notified"
   echo ""
   echo "When ready, run:"
-  echo "  brain promote --to production --confirm"
+  echo "  ark promote --to production --confirm"
   echo ""
   exit 1
 fi

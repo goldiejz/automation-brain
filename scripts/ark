@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# brain — Single command to activate the automation brain in any project
+# brain — Single command to activate the ark in any project
 #
 # Usage (from any sub-project directory):
 #   brain                    # Default: sync + show status
-#   brain sync               # Pull latest vault, refresh snapshot
-#   brain bootstrap          # Run new project bootstrap
-#   brain status             # Show current snapshot state
-#   brain insights           # Show latest cross-project insights
-#   brain lessons            # List all lessons available
-#   brain phase-6            # Trigger Phase 6 daemon manually
-#   brain init               # Initialize .parent-automation in current project
+#   ark sync               # Pull latest vault, refresh snapshot
+#   ark bootstrap          # Run new project bootstrap
+#   ark status             # Show current snapshot state
+#   ark insights           # Show latest cross-project insights
+#   ark lessons            # List all lessons available
+#   ark phase-6            # Trigger Phase 6 daemon manually
+#   ark init               # Initialize .parent-automation in current project
 #
 # Install once:
-#   ln -sf ~/vaults/automation-brain/scripts/brain /usr/local/bin/brain
+#   ln -sf ~/vaults/automation-brain/scripts/ark /usr/local/bin/brain
 
 set -euo pipefail
 
@@ -28,7 +28,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 print_header() {
-  echo -e "${BLUE}🧠 Automation Brain${NC}"
+  echo -e "${BLUE}🚢 ARK${NC}"
   echo -e "   Vault: $VAULT_PATH"
   echo -e "   Project: $PROJECT_DIR"
   echo ""
@@ -36,16 +36,16 @@ print_header() {
 
 cmd_sync() {
   print_header
-  bash "$VAULT_PATH/scripts/brain-sync.sh" "$PROJECT_DIR"
+  bash "$VAULT_PATH/scripts/ark-sync.sh" "$PROJECT_DIR"
 }
 
 cmd_status() {
   print_header
-  if [[ -f "$PROJECT_DIR/.parent-automation/brain-snapshot/SNAPSHOT-MANIFEST.json" ]]; then
+  if [[ -f "$PROJECT_DIR/.parent-automation/ark-snapshot/SNAPSHOT-MANIFEST.json" ]]; then
     echo -e "${GREEN}✅ Snapshot present${NC}"
-    cat "$PROJECT_DIR/.parent-automation/brain-snapshot/SNAPSHOT-MANIFEST.json" | head -20
+    cat "$PROJECT_DIR/.parent-automation/ark-snapshot/SNAPSHOT-MANIFEST.json" | head -20
   else
-    echo -e "${YELLOW}⚠️  No snapshot yet. Run: brain sync${NC}"
+    echo -e "${YELLOW}⚠️  No snapshot yet. Run: ark sync${NC}"
   fi
   echo ""
   if [[ -f "$PROJECT_DIR/.planning/bootstrap-decisions.jsonl" ]]; then
@@ -59,7 +59,7 @@ cmd_status() {
 cmd_bootstrap() {
   print_header
   if [[ ! -f "$PROJECT_DIR/.parent-automation/new-project-bootstrap-v2.ts" ]]; then
-    echo -e "${RED}❌ No bootstrap script found. Run: brain init${NC}"
+    echo -e "${RED}❌ No bootstrap script found. Run: ark init${NC}"
     exit 1
   fi
   cd "$PROJECT_DIR/.parent-automation"
@@ -73,7 +73,7 @@ cmd_insights() {
   if [[ -f "$VAULT_PATH/observability/cross-customer-insights.md" ]]; then
     cat "$VAULT_PATH/observability/cross-customer-insights.md" | head -60
   else
-    echo "No insights yet. Run: brain phase-6"
+    echo "No insights yet. Run: ark phase-6"
   fi
 }
 
@@ -106,7 +106,7 @@ cmd_init() {
   TEMPLATE_DIR="$VAULT_PATH/templates/parent-automation"
   if [[ ! -d "$TEMPLATE_DIR" ]]; then
     echo -e "${RED}❌ Template dir missing: $TEMPLATE_DIR${NC}"
-    echo "   Run: brain sync (to refresh vault)"
+    echo "   Run: ark sync (to refresh vault)"
     exit 1
   fi
 
@@ -146,7 +146,7 @@ cmd_init() {
 
   # Run sync to populate/refresh snapshot
   echo ""
-  bash "$VAULT_PATH/scripts/brain-sync.sh" "$PROJECT_DIR"
+  bash "$VAULT_PATH/scripts/ark-sync.sh" "$PROJECT_DIR"
 
   echo ""
   if [[ "$ALREADY_INITIALIZED" == "true" ]]; then
@@ -154,15 +154,15 @@ cmd_init() {
   else
     echo -e "${GREEN}✅ Initialized! Next steps:${NC}"
   fi
-  echo "  brain bootstrap   # Run bootstrap workflow"
-  echo "  brain status      # Check state"
+  echo "  ark bootstrap   # Run bootstrap workflow"
+  echo "  ark status      # Check state"
 }
 
 cmd_help() {
   cat <<EOF
-🧠 Automation Brain — Single command interface
+🚢 ARK — Single command interface
 
-Usage: brain [command]
+Usage: ark [command]
 
 Commands:
   AUTONOMOUS DELIVERY:
@@ -201,15 +201,15 @@ Environment:
 
 Examples:
   cd ~/code/my-project && brain          # Sync and show status
-  brain bootstrap                         # Run bootstrap
-  brain insights                          # See cross-project patterns
+  ark bootstrap                         # Run bootstrap
+  ark insights                          # See cross-project patterns
 EOF
 }
 
 cmd_align() {
   print_header
   shift_args=("${@:2}")
-  bash "$VAULT_PATH/scripts/brain-align.sh" "${shift_args[@]:-$PROJECT_DIR}"
+  bash "$VAULT_PATH/scripts/ark-align.sh" "${shift_args[@]:-$PROJECT_DIR}"
 }
 
 # Default command: sync + status
@@ -223,17 +223,17 @@ case "$COMMAND" in
   status)     cmd_status ;;
   bootstrap)  cmd_bootstrap ;;
   align)      cmd_align "$@" ;;
-  doctor)     bash "$VAULT_PATH/scripts/brain-doctor.sh" ;;
-  create)     shift; bash "$VAULT_PATH/scripts/brain-create.sh" "$@" ;;
-  deliver)    shift; bash "$VAULT_PATH/scripts/brain-deliver.sh" "$@" ;;
-  promote)    shift; bash "$VAULT_PATH/scripts/brain-promote.sh" "$@" ;;
-  budget)     shift; bash "$VAULT_PATH/scripts/brain-budget.sh" "$@" ;;
-  portfolio)  shift; bash "$VAULT_PATH/scripts/brain-portfolio.sh" "$@" ;;
-  secrets)    shift; bash "$VAULT_PATH/scripts/brain-secrets.sh" "$@" ;;
-  lifecycle)  shift; bash "$VAULT_PATH/scripts/brain-lifecycle.sh" "$@" ;;
-  backup)     bash "$VAULT_PATH/scripts/brain-backup.sh" ;;
-  validate)   shift; bash "$VAULT_PATH/scripts/brain-validate.sh" "$@" ;;
-  report)     shift; bash "$VAULT_PATH/scripts/brain-report.sh" "$@" ;;
+  doctor)     bash "$VAULT_PATH/scripts/ark-doctor.sh" ;;
+  create)     shift; bash "$VAULT_PATH/scripts/ark-create.sh" "$@" ;;
+  deliver)    shift; bash "$VAULT_PATH/scripts/ark-deliver.sh" "$@" ;;
+  promote)    shift; bash "$VAULT_PATH/scripts/ark-promote.sh" "$@" ;;
+  budget)     shift; bash "$VAULT_PATH/scripts/ark-budget.sh" "$@" ;;
+  portfolio)  shift; bash "$VAULT_PATH/scripts/ark-portfolio.sh" "$@" ;;
+  secrets)    shift; bash "$VAULT_PATH/scripts/ark-secrets.sh" "$@" ;;
+  lifecycle)  shift; bash "$VAULT_PATH/scripts/ark-lifecycle.sh" "$@" ;;
+  backup)     bash "$VAULT_PATH/scripts/ark-backup.sh" ;;
+  validate)   shift; bash "$VAULT_PATH/scripts/ark-validate.sh" "$@" ;;
+  report)     shift; bash "$VAULT_PATH/scripts/ark-report.sh" "$@" ;;
   insights)   cmd_insights ;;
   lessons)    cmd_lessons ;;
   phase-6)    cmd_phase6 ;;

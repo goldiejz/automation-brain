@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# brain secrets — secrets management pattern
+# ark secrets — secrets management pattern
 #
 # Detects deployment target and provides scaffolding for secrets:
 #   cloudflare-workers → wrangler secrets
@@ -9,9 +9,9 @@
 #   none → .env.example only
 #
 # Usage:
-#   brain secrets init       # set up scaffolding for current project
-#   brain secrets list       # list expected secrets from .env.example
-#   brain secrets check      # verify all required secrets present
+#   ark secrets init       # set up scaffolding for current project
+#   ark secrets list       # list expected secrets from .env.example
+#   ark secrets check      # verify all required secrets present
 
 set -uo pipefail
 
@@ -39,7 +39,7 @@ fi
 
 case "$ACTION" in
   init)
-    echo "🔐 Brain Secrets Setup"
+    echo "🔐 Ark Secrets Setup"
     echo "  Detected deployment: $DEPLOY_TARGET"
     echo ""
 
@@ -207,14 +207,14 @@ EOF
       echo "Expected secrets:"
       grep -E "^[A-Z_]+=" "$PROJECT_DIR/.env.example" | sed 's/=.*//' | sed 's/^/  /'
     else
-      echo "No .env.example found. Run: brain secrets init"
+      echo "No .env.example found. Run: ark secrets init"
     fi
     ;;
 
   check)
     echo "Checking secrets..."
     if [[ ! -f "$PROJECT_DIR/.env.example" ]]; then
-      echo -e "${YELLOW}⚠${NC}  No .env.example — run: brain secrets init"
+      echo -e "${YELLOW}⚠${NC}  No .env.example — run: ark secrets init"
       exit 0
     fi
 

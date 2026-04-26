@@ -94,7 +94,7 @@ fn render_help_overlay(f: &mut Frame) {
     let help_text = vec![
         Line::from(""),
         Line::from(vec![Span::styled(
-            "  Brain OS — Executive Dashboard",
+            "  Ark OS — Executive Dashboard",
             Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
         )]),
         Line::from(""),

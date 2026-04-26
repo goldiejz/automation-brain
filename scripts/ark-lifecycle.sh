@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# brain lifecycle — project lifecycle management
+# ark lifecycle — project lifecycle management
 #
 # Usage:
-#   brain lifecycle status              # show current lifecycle stage
-#   brain lifecycle archive             # archive completed project
-#   brain lifecycle maintain            # switch to maintenance mode
-#   brain lifecycle sunset              # mark for shutdown
-#   brain lifecycle revive              # bring back from archive
+#   ark lifecycle status              # show current lifecycle stage
+#   ark lifecycle archive             # archive completed project
+#   ark lifecycle maintain            # switch to maintenance mode
+#   ark lifecycle sunset              # mark for shutdown
+#   ark lifecycle revive              # bring back from archive
 
 set -uo pipefail
 
@@ -78,7 +78,7 @@ print(f'   History: {len(l[\"history\"])} transitions')
     ;;
 
   archive)
-    transition "archived" "Archived via brain lifecycle"
+    transition "archived" "Archived via ark lifecycle"
     # Update STATE.md
     if [[ -f "$PROJECT_DIR/.planning/STATE.md" ]]; then
       sed -i.bak "s/^\*\*Status:\*\*.*/\*\*Status:\*\* archived/" "$PROJECT_DIR/.planning/STATE.md"
@@ -90,9 +90,9 @@ print(f'   History: {len(l[\"history\"])} transitions')
 
     echo ""
     echo -e "${YELLOW}Project archived${NC}"
-    echo "  - Brain hooks disabled for this project"
+    echo "  - Ark hooks disabled for this project"
     echo "  - STATE.md updated"
-    echo "  - To revive: brain lifecycle revive"
+    echo "  - To revive: ark lifecycle revive"
     ;;
 
   maintain)
@@ -105,7 +105,7 @@ print(f'   History: {len(l[\"history\"])} transitions')
     echo -e "${YELLOW}Maintenance mode${NC}"
     echo "  - Only bug fixes and security updates"
     echo "  - No new features"
-    echo "  - Brain deliver will refuse new phases"
+    echo "  - Ark deliver will refuse new phases"
     ;;
 
   sunset)
@@ -130,7 +130,7 @@ print(f'   History: {len(l[\"history\"])} transitions')
     fi
     echo ""
     echo -e "${GREEN}Project revived${NC}"
-    echo "  - Brain hooks re-enabled"
-    echo "  - Run: brain sync"
+    echo "  - Ark hooks re-enabled"
+    echo "  - Run: ark sync"
     ;;
 esac

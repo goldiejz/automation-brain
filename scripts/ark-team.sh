@@ -19,7 +19,7 @@ set -uo pipefail
 PROJECT_DIR="${1:?project dir required}"
 PHASE_NUM="${2:?phase number required}"
 
-VAULT_PATH="${AUTOMATION_BRAIN_PATH:-$HOME/vaults/automation-brain}"
+VAULT_PATH="${ARK_HOME:-$HOME/vaults/ark}"
 PHASE_DIR="$PROJECT_DIR/.planning/phase-$PHASE_NUM"
 TEAM_DIR="$PHASE_DIR/team"
 mkdir -p "$TEAM_DIR"
@@ -99,7 +99,7 @@ build_context() {
     find . -type f \
       -not -path './node_modules/*' \
       -not -path './.git/*' \
-      -not -path './.parent-automation/brain-snapshot/*' \
+      -not -path './.parent-automation/ark-snapshot/*' \
       | head -40
     echo "\`\`\`"
   } > "$target_file"
@@ -453,7 +453,7 @@ BLOCKED
 
 ## Next Step
 
-$([ "$pm_status" -eq 0 ] && echo "Run \`brain deliver --phase $((PHASE_NUM + 1))\` to start next phase." || echo "Address blockers above, then re-run \`brain deliver --phase $PHASE_NUM\`.")
+$([ "$pm_status" -eq 0 ] && echo "Run \`ark deliver --phase $((PHASE_NUM + 1))\` to start next phase." || echo "Address blockers above, then re-run \`ark deliver --phase $PHASE_NUM\`.")
 EOF
 
   echo ""

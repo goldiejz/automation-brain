@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Brain SessionEnd/Stop hook — trigger Phase 6 observability after session work
+# Ark SessionEnd/Stop hook — trigger Phase 6 observability after session work
 #
 # Behavior:
 # - If CWD has .parent-automation/ AND new decisions were logged this session,
@@ -10,7 +10,7 @@
 
 set -euo pipefail
 
-VAULT_PATH="${AUTOMATION_BRAIN_PATH:-$HOME/vaults/automation-brain}"
+VAULT_PATH="${ARK_HOME:-$HOME/vaults/ark}"
 PROJECT_DIR="$(pwd)"
 
 # Skip if vault doesn't exist
@@ -44,7 +44,7 @@ if [[ -f "$DAEMON_PATH" ]]; then
 Session ending — observability daemon dispatched.
 Decisions in log: $DECISIONS
 Phase 6 will: detect patterns, update lesson effectiveness, refresh cache.
-Output: ~/vaults/automation-brain/observability/
+Output: ~/vaults/ark/observability/
 ================================
 EOF
 fi

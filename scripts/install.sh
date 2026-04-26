@@ -9,19 +9,19 @@
 # 3. Symlinks brain CLI to ~/.local/bin/
 # 4. Symlinks hooks to ~/.claude/hooks/
 # 5. Registers hooks in ~/.claude/settings.json
-# 6. Installs brain skill at ~/.claude/skills/brain/
-# 7. Runs brain doctor to verify
+# 6. Installs brain skill at ~/.claude/skills/ark/
+# 7. Runs ark doctor to verify
 
 set -euo pipefail
 
-REPO_URL="${BRAIN_REPO_URL:-https://github.com/goldiejz/automation-brain.git}"
-VAULT_PATH="${1:-$HOME/vaults/automation-brain}"
+REPO_URL="${ARK_REPO_URL:-https://github.com/goldiejz/ark.git}"
+VAULT_PATH="${1:-$HOME/vaults/ark}"
 [[ "${1:-}" == "--vault-path" ]] && VAULT_PATH="$2"
 
 GREEN='\033[0;32m'
 NC='\033[0m'
 
-echo "🧠 Installing Brain at: $VAULT_PATH"
+echo "🧠 Installing Ark at: $VAULT_PATH"
 echo ""
 
 # Step 1: Clone or update vault
@@ -48,7 +48,7 @@ echo -e "  ${GREEN}✅${NC} Dependencies installed"
 echo ""
 echo "Step 3: Making scripts executable..."
 chmod +x "$VAULT_PATH/scripts/"*.sh 2>/dev/null || true
-chmod +x "$VAULT_PATH/scripts/brain" 2>/dev/null || true
+chmod +x "$VAULT_PATH/scripts/ark" 2>/dev/null || true
 chmod +x "$VAULT_PATH/hooks/"*.sh 2>/dev/null || true
 echo -e "  ${GREEN}✅${NC} Scripts executable"
 
@@ -56,7 +56,7 @@ echo -e "  ${GREEN}✅${NC} Scripts executable"
 echo ""
 echo "Step 4: Installing 'brain' command..."
 mkdir -p "$HOME/.local/bin"
-ln -sf "$VAULT_PATH/scripts/brain" "$HOME/.local/bin/brain"
+ln -sf "$VAULT_PATH/scripts/ark" "$HOME/.local/bin/brain"
 echo -e "  ${GREEN}✅${NC} brain → ~/.local/bin/brain"
 
 # Detect shell and add to PATH if needed
@@ -100,13 +100,13 @@ settings.setdefault("hooks", {})
 
 # SessionStart
 ss = settings["hooks"].setdefault("SessionStart", [])
-if not any("brain-session-start.sh" in str(h.get("command","")) for e in ss for h in e.get("hooks",[])):
-    ss.append({"matcher":"","hooks":[{"type":"command","command":"bash ~/.claude/hooks/brain-session-start.sh","timeout":5}]})
+if not any("ark-session-start.sh" in str(h.get("command","")) for e in ss for h in e.get("hooks",[])):
+    ss.append({"matcher":"","hooks":[{"type":"command","command":"bash ~/.claude/hooks/ark-session-start.sh","timeout":5}]})
     print("  Registered: SessionStart")
 
 # Stop hooks
 stop = settings["hooks"].setdefault("Stop", [])
-for hook_name in ["brain-session-end.sh", "brain-extract-learnings.sh", "brain-error-monitor.sh"]:
+for hook_name in ["ark-session-end.sh", "ark-extract-learnings.sh", "ark-error-monitor.sh"]:
     if not any(hook_name in str(h.get("command","")) for e in stop for h in e.get("hooks",[])):
         stop.append({"matcher":"","hooks":[{"type":"command","command":f"bash ~/.claude/hooks/{hook_name}","timeout":5}]})
         print(f"  Registered: Stop ({hook_name})")
@@ -130,9 +130,9 @@ fi
 
 # Step 8: Run doctor
 echo ""
-echo "Step 8: Running brain doctor..."
+echo "Step 8: Running ark doctor..."
 echo ""
-bash "$VAULT_PATH/scripts/brain-doctor.sh" || true
+bash "$VAULT_PATH/scripts/ark-doctor.sh" || true
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -141,8 +141,8 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 echo "Try it now:"
 echo "  cd ~/code/your-project"
-echo "  brain status     # Check current state"
-echo "  brain init       # Initialize new project"
-echo "  brain align      # Standardize imported project"
+echo "  ark status     # Check current state"
+echo "  ark init       # Initialize new project"
+echo "  ark align      # Standardize imported project"
 echo ""
 echo "Restart your shell or run: export PATH=\"\$HOME/.local/bin:\$PATH\""

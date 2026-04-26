@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# brain budget — tiered token tracking with auto-swap notifications
+# ark budget — tiered token tracking with auto-swap notifications
 #
 # Tiers (auto-applied based on usage %):
 #   GREEN   (0-50%)   → all models available (Opus, Sonnet, Haiku, Codex, Gemini)
@@ -9,21 +9,21 @@
 #   BLACK   (95-100%) → hard stop
 #
 # Usage:
-#   brain budget                          # show state + tier
-#   brain budget --set-cap 50000          # phase cap
-#   brain budget --set-monthly 1000000    # monthly cap
-#   brain budget --record <tokens> <model># log API call
-#   brain budget --check                  # exit 1 if BLACK tier
-#   brain budget --tier                   # output current tier (for agents to read)
-#   brain budget --route <task>           # output recommended model for current tier
-#   brain budget --watch                  # monitor and notify on tier changes
+#   ark budget                          # show state + tier
+#   ark budget --set-cap 50000          # phase cap
+#   ark budget --set-monthly 1000000    # monthly cap
+#   ark budget --record <tokens> <model># log API call
+#   ark budget --check                  # exit 1 if BLACK tier
+#   ark budget --tier                   # output current tier (for agents to read)
+#   ark budget --route <task>           # output recommended model for current tier
+#   ark budget --watch                  # monitor and notify on tier changes
 
 set -uo pipefail
 
 PROJECT_DIR="$(pwd)"
 BUDGET_FILE="$PROJECT_DIR/.planning/budget.json"
 TIER_FILE="$PROJECT_DIR/.planning/budget-tier.txt"
-EVENTS_LOG="${AUTOMATION_BRAIN_PATH:-$HOME/vaults/automation-brain}/observability/budget-events.jsonl"
+EVENTS_LOG="${ARK_HOME:-$HOME/vaults/ark}/observability/budget-events.jsonl"
 ACTION=""
 
 while [[ $# -gt 0 ]]; do
@@ -127,9 +127,9 @@ with open('$BUDGET_FILE', 'w') as f:
 
   # System notification on macOS (Linux: notify-send)
   if command -v osascript >/dev/null 2>&1; then
-    osascript -e "display notification \"Tier: $old_tier → $new_tier\" with title \"Brain Budget\" sound name \"Glass\"" 2>/dev/null || true
+    osascript -e "display notification \"Tier: $old_tier → $new_tier\" with title \"Ark Budget\" sound name \"Glass\"" 2>/dev/null || true
   elif command -v notify-send >/dev/null 2>&1; then
-    notify-send "Brain Budget" "Tier: $old_tier → $new_tier" 2>/dev/null || true
+    notify-send "Ark Budget" "Tier: $old_tier → $new_tier" 2>/dev/null || true
   fi
 
   # Compute messages outside the heredoc to avoid bash case-in-heredoc issues
@@ -141,11 +141,11 @@ with open('$BUDGET_FILE', 'w') as f:
     YELLOW) meaning="50% budget used. Routing demotes Opus → Sonnet to extend runway."
             recommendation="Continue normal work." ;;
     ORANGE) meaning="70% budget used. Free tier only (Codex, Gemini). Paid models suspended."
-            recommendation="Consider raising cap if phase needs paid tier: brain budget --set-cap <bigger>" ;;
+            recommendation="Consider raising cap if phase needs paid tier: ark budget --set-cap <bigger>" ;;
     RED)    meaning="85% budget used. Critical — fallback to regex extraction and cached templates."
             recommendation="Phase will run with degraded quality. Review carefully before signing off." ;;
     BLACK)  meaning="Budget exhausted. New AI dispatches BLOCKED."
-            recommendation="STOP. Reset phase budget (brain budget --reset) or raise cap (brain budget --set-cap <bigger>)." ;;
+            recommendation="STOP. Reset phase budget (ark budget --reset) or raise cap (ark budget --set-cap <bigger>)." ;;
   esac
 
   # Per-project notification file (SessionStart hook surfaces this)
@@ -332,7 +332,7 @@ monthly_pct = (b['monthly_used'] / b['monthly_cap_tokens']) * 100 if b['monthly_
 
 emoji = {'GREEN': '🟢', 'YELLOW': '🟡', 'ORANGE': '🟠', 'RED': '🔴', 'BLACK': '⚫'}.get(b.get('current_tier', 'GREEN'), '?')
 
-print(f'{emoji} Brain Budget — Tier: {b.get(\"current_tier\", \"GREEN\")}')
+print(f'{emoji} Ark Budget — Tier: {b.get(\"current_tier\", \"GREEN\")}')
 print('')
 print(f'  Phase:    {b[\"phase_used\"]:>10,} / {b[\"phase_cap_tokens\"]:>10,} tokens ({phase_pct:.1f}%)')
 print(f'  Monthly:  {b[\"monthly_used\"]:>10,} / {b[\"monthly_cap_tokens\"]:>10,} tokens ({monthly_pct:.1f}%)')

@@ -1,6 +1,6 @@
 # Obsidian Brain: Multi-Project Automation Learning System
 
-Self-improving automation brain for the Strategix ecosystem (CRM, IOC, ServiceDesk). Ingests lessons from all projects, detects universal patterns, and accelerates new project bootstraps through cached knowledge and intelligent model selection.
+Self-improving ark for the Strategix ecosystem (CRM, IOC, ServiceDesk). Ingests lessons from all projects, detects universal patterns, and accelerates new project bootstraps through cached knowledge and intelligent model selection.
 
 ## What This Is
 
@@ -101,7 +101,7 @@ See `DEPLOYMENT_STATUS.md` for live deployment details.
 ### For Developers
 1. **Clone this vault:**
    ```bash
-   git clone https://github.com/strategix/automation-brain.git ~/vaults/automation-brain
+   git clone https://github.com/strategix/ark.git ~/vaults/ark
    ```
 
 2. **Open in Obsidian:**
@@ -137,7 +137,7 @@ See `DEPLOYMENT_STATUS.md` for live deployment details.
 ## Integration with Projects
 
 Each Strategix project has:
-- `.parent-automation/brain-snapshot/` — Embedded copy for offline/Cowork use
+- `.parent-automation/ark-snapshot/` — Embedded copy for offline/Cowork use
 - `.planning/bootstrap-decisions.jsonl` — Decision log fed to Phase 6
 - `query-brain.ts` — Interface to snapshot
 - `new-project-bootstrap-v2.ts` — 12-step bootstrap with brain integration
@@ -172,20 +172,20 @@ Runs instantly when bootstrap logs a decision:
 
 ### View vault structure
 ```bash
-cd ~/vaults/automation-brain
+cd ~/vaults/ark
 find . -type f -name "*.md" | head -20
 ```
 
 ### Check latest insights
 ```bash
-cat ~/vaults/automation-brain/observability/cross-customer-insights.md
-cat ~/vaults/automation-brain/observability/lesson-effectiveness.md
+cat ~/vaults/ark/observability/cross-customer-insights.md
+cat ~/vaults/ark/observability/lesson-effectiveness.md
 ```
 
 ### Monitor Phase 6 runs
 ```bash
-tail -f ~/vaults/automation-brain/logs/phase-6.log
-tail -f ~/vaults/automation-brain/logs/phase-6-models.log
+tail -f ~/vaults/ark/logs/phase-6.log
+tail -f ~/vaults/ark/logs/phase-6-models.log
 ```
 
 ### Check decision logs from projects
@@ -223,8 +223,8 @@ API keys may be missing. See `DEPLOYMENT_GUIDE.md` Part 1 (environment setup).
 ### Snapshot not found in project
 ```bash
 # Restore from vault
-cp ~/vaults/automation-brain/cache/query-responses/* \
-   ~/code/[project]/.parent-automation/brain-snapshot/cache/
+cp ~/vaults/ark/cache/query-responses/* \
+   ~/code/[project]/.parent-automation/ark-snapshot/cache/
 ```
 
 ---
