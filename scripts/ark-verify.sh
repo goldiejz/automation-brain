@@ -1557,6 +1557,326 @@ T13_PROJ_B
   rm -rf "$T13_VAULT" "$T13_PORTFOLIO"
 fi
 
+# === Tier 14: AOS Continuous Operation contract (Phase 7) ===
+# AOS Phase 7 exit gate. Validates the continuous-operation surface:
+# scripts/ark-continuous.sh, scripts/lib/inbox-parser.sh,
+# scripts/ark-weekly-digest.sh, dispatcher wiring, INBOX lifecycle, kill-switch
+# safety rails (PAUSE / DAILY_CAP_HIT / LOCK_CONTENDED), launchd plist
+# generation, weekly digest, and read-only invariants on real vault docs +
+# real ~/Library/LaunchAgents.
+#
+# Isolation pattern (Phase 4 GitHub-incident lesson + Phase 6 Tier 12 + Tier 13):
+#   - mktemp -d ARK_HOME (synthetic vault)
+#   - mktemp -d ARK_PORTFOLIO_ROOT
+#   - mktemp -d ARK_LAUNCHAGENTS_DIR (NEVER touches ~/Library/LaunchAgents)
+#   - ARK_CREATE_GITHUB unset (never invoked, but mock `ark` returns 0 anyway)
+#   - PATH-mocked `ark` so dispatch doesn't run real ark
+#
+# Self-referential trap (Phase 4 lesson): the `read -p` regression sweep is
+# constructed character-class-wise (`re''ad`) so this very file does not
+# self-match when grep runs across the suite. The Tiers 7-13 sweep is
+# informational only (does not block Tier 14 pass).
+if should_run_tier 14; then
+  echo ""
+  echo -e "${BLUE}━━━ Tier 14: AOS Continuous Operation ━━━${NC}"
+
+  T14_VAULT=$(mktemp -d -t ark-tier14-vault.XXXXXX)
+  T14_PORTFOLIO=$(mktemp -d -t ark-tier14-port.XXXXXX)
+  T14_LA=$(mktemp -d -t ark-tier14-launchagents.XXXXXX)
+
+  # Real-vault md5 invariant capture (Phase 4 GitHub-incident lesson)
+  T14_REAL_DB="$HOME/vaults/ark/observability/policy.db"
+  T14_REAL_ESC="$HOME/vaults/ark/ESCALATIONS.md"
+  T14_REAL_UNI="$HOME/vaults/ark/lessons/universal-patterns.md"
+  T14_REAL_ANTI="$HOME/vaults/ark/bootstrap/anti-patterns.md"
+  T14_REAL_PLIST="$HOME/Library/LaunchAgents/com.ark.continuous.plist"
+  T14_REAL_DIGEST_PLIST="$HOME/Library/LaunchAgents/com.ark.weekly-digest.plist"
+  _t14_md5() {
+    if [[ -f "$1" ]]; then
+      md5 -q "$1" 2>/dev/null || md5sum "$1" 2>/dev/null | awk '{print $1}'
+    else
+      echo "ABSENT"
+    fi
+  }
+  T14_DB_BEFORE=$(_t14_md5 "$T14_REAL_DB")
+  T14_ESC_BEFORE=$(_t14_md5 "$T14_REAL_ESC")
+  T14_UNI_BEFORE=$(_t14_md5 "$T14_REAL_UNI")
+  T14_ANTI_BEFORE=$(_t14_md5 "$T14_REAL_ANTI")
+  T14_PLIST_BEFORE=$(_t14_md5 "$T14_REAL_PLIST")
+  T14_DIGEST_PLIST_BEFORE=$(_t14_md5 "$T14_REAL_DIGEST_PLIST")
+
+  # Seed synthetic vault
+  mkdir -p "$T14_VAULT/INBOX" "$T14_VAULT/observability" \
+           "$T14_VAULT/lessons" "$T14_VAULT/bootstrap"
+  T14_DB="$T14_VAULT/observability/policy.db"
+  # Initialize policy.db schema by sourcing policy-db.sh
+  ARK_HOME="$T14_VAULT" ARK_POLICY_DB="$T14_DB" bash -c \
+    "source '$VAULT_PATH/scripts/lib/policy-db.sh'; db_init" >/dev/null 2>&1
+
+  # Mock `ark` on PATH so dispatch never touches real ark/GitHub
+  mkdir -p "$T14_VAULT/bin"
+  cat > "$T14_VAULT/bin/ark" <<'T14_MOCK_ARK'
+#!/usr/bin/env bash
+# Tier 14 synthetic mock — always exits 0, no side effects.
+exit 0
+T14_MOCK_ARK
+  chmod +x "$T14_VAULT/bin/ark"
+
+  # === T14.1 — Static wiring: 3 scripts present + executable ===
+  run_check 14 "Static: scripts/ark-continuous.sh exists + executable" \
+    "[ -x '$VAULT_PATH/scripts/ark-continuous.sh' ] && echo OK" \
+    "^OK$"
+  run_check 14 "Static: scripts/lib/inbox-parser.sh exists + sourceable" \
+    "[ -f '$VAULT_PATH/scripts/lib/inbox-parser.sh' ] && bash -n '$VAULT_PATH/scripts/lib/inbox-parser.sh' && echo OK" \
+    "^OK$"
+  run_check 14 "Static: scripts/ark-weekly-digest.sh exists + executable" \
+    "[ -x '$VAULT_PATH/scripts/ark-weekly-digest.sh' ] && echo OK" \
+    "^OK$"
+  run_check 14 "Static: ark dispatcher has cmd_continuous + continuous arm" \
+    "grep -q 'cmd_continuous' '$VAULT_PATH/scripts/ark' && grep -qE 'continuous\\)' '$VAULT_PATH/scripts/ark' && echo OK" \
+    "^OK$"
+  run_check 14 "Static: bash -n on all 3 phase-7 scripts" \
+    "bash -n '$VAULT_PATH/scripts/ark-continuous.sh' && bash -n '$VAULT_PATH/scripts/lib/inbox-parser.sh' && bash -n '$VAULT_PATH/scripts/ark-weekly-digest.sh' && echo OK" \
+    "^OK$"
+
+  # === T14.2 — Self-test passthrough (3 scripts) ===
+  run_check 14 "Self-test: inbox-parser.sh ≥16/16 pass" \
+    "out=\$(bash '$VAULT_PATH/scripts/lib/inbox-parser.sh' --self-test 2>&1); n=\$(echo \"\$out\" | grep -oE 'RESULT: [0-9]+/[0-9]+ pass' | grep -oE '^RESULT: [0-9]+' | grep -oE '[0-9]+'); test \"\${n:-0}\" -ge 16 && echo OK" \
+    "^OK$"
+  run_check 14 "Self-test: ark-continuous.sh ≥34/34 pass" \
+    "out=\$(bash '$VAULT_PATH/scripts/ark-continuous.sh' --self-test 2>&1); n=\$(echo \"\$out\" | grep -oE 'RESULT: [0-9]+/[0-9]+ pass' | tail -1 | grep -oE '^RESULT: [0-9]+' | grep -oE '[0-9]+'); test \"\${n:-0}\" -ge 34 && echo OK" \
+    "^OK$"
+  run_check 14 "Self-test: ark-weekly-digest.sh ≥11/11 pass" \
+    "out=\$(bash '$VAULT_PATH/scripts/ark-weekly-digest.sh' --self-test 2>&1); n=\$(echo \"\$out\" | grep -oE 'RESULT: [0-9]+/[0-9]+ pass' | grep -oE '^RESULT: [0-9]+' | grep -oE '[0-9]+'); test \"\${n:-0}\" -ge 11 && echo OK" \
+    "^OK$"
+
+  # === T14.3 — Synthetic 3-intent INBOX lifecycle ===
+  # Build 3 valid INBOX files: resume + new-phase + promote-lessons.
+  cat > "$T14_VAULT/INBOX/2026-W14-resume.md" <<'T14_INBOX_RESUME'
+---
+intent: resume
+customer: scratch
+priority: medium
+---
+
+# resume the active phase
+T14_INBOX_RESUME
+  cat > "$T14_VAULT/INBOX/2026-W14-newphase.md" <<'T14_INBOX_NEWPHASE'
+---
+intent: new-phase
+customer: scratch
+priority: high
+phase: 1
+---
+
+# kick off phase 1
+T14_INBOX_NEWPHASE
+  cat > "$T14_VAULT/INBOX/2026-W14-promote.md" <<'T14_INBOX_PROMOTE'
+---
+intent: promote-lessons
+customer: scratch
+priority: low
+---
+
+# promote lessons
+T14_INBOX_PROMOTE
+
+  # Run tick under isolated env (mock ark on PATH)
+  T14_TODAY=$(date -u +%Y-%m-%d)
+  T14_TICK_LOG=$(mktemp -t ark-tier14-tick.XXXXXX)
+  ARK_HOME="$T14_VAULT" \
+    ARK_POLICY_DB="$T14_DB" \
+    ARK_PORTFOLIO_ROOT="$T14_PORTFOLIO" \
+    ARK_LAUNCHAGENTS_DIR="$T14_LA" \
+    PATH="$T14_VAULT/bin:$PATH" \
+    bash "$VAULT_PATH/scripts/ark-continuous.sh" --tick > "$T14_TICK_LOG" 2>&1 || true
+
+  run_check 14 "INBOX: 3 files moved to processed/$T14_TODAY/" \
+    "n=\$(find '$T14_VAULT/INBOX/processed/$T14_TODAY' -maxdepth 1 -type f -name '*.md' 2>/dev/null | wc -l | tr -d ' '); test \"\${n:-0}\" -eq 3 && echo OK" \
+    "^OK$"
+  run_check 14 "INBOX: 0 files left in INBOX root" \
+    "n=\$(find '$T14_VAULT/INBOX' -maxdepth 1 -type f -name '*.md' 2>/dev/null | wc -l | tr -d ' '); test \"\${n:-0}\" -eq 0 && echo OK" \
+    "^OK$"
+  run_check 14 "INBOX: 0 .failed and 0 .malformed siblings" \
+    "n=\$(find '$T14_VAULT/INBOX' -type f \\( -name '*.failed' -o -name '*.malformed' \\) 2>/dev/null | wc -l | tr -d ' '); test \"\${n:-0}\" -eq 0 && echo OK" \
+    "^OK$"
+  run_check 14 "INBOX: 3 INBOX_PROCESSED audit rows + ≥1 TICK_COMPLETE row" \
+    "p=\$(sqlite3 '$T14_DB' \"SELECT COUNT(*) FROM decisions WHERE class='continuous' AND decision='INBOX_PROCESSED';\" 2>/dev/null); t=\$(sqlite3 '$T14_DB' \"SELECT COUNT(*) FROM decisions WHERE class='continuous' AND decision='TICK_COMPLETE';\" 2>/dev/null); test \"\${p:-0}\" -ge 3 && test \"\${t:-0}\" -ge 1 && echo OK" \
+    "^OK$"
+  run_check 14 "INBOX: no .tmp* atomic-move detritus" \
+    "n=\$(find '$T14_VAULT/INBOX' -name '.tmp*' 2>/dev/null | wc -l | tr -d ' '); test \"\${n:-0}\" -eq 0 && echo OK" \
+    "^OK$"
+
+  # === T14.4 — Safety rails ===
+
+  # 4a: PAUSE → tick exits no-op + PAUSE_ACTIVE row, INBOX untouched
+  T14_PAUSE_VAULT=$(mktemp -d -t ark-tier14-pause.XXXXXX)
+  mkdir -p "$T14_PAUSE_VAULT/INBOX" "$T14_PAUSE_VAULT/observability"
+  ARK_HOME="$T14_PAUSE_VAULT" ARK_POLICY_DB="$T14_PAUSE_VAULT/observability/policy.db" \
+    bash -c "source '$VAULT_PATH/scripts/lib/policy-db.sh'; db_init" >/dev/null 2>&1
+  : > "$T14_PAUSE_VAULT/PAUSE"
+  cat > "$T14_PAUSE_VAULT/INBOX/should-not-process.md" <<'T14_PAUSE_INBOX'
+---
+intent: resume
+---
+
+# should NOT be processed
+T14_PAUSE_INBOX
+  ARK_HOME="$T14_PAUSE_VAULT" \
+    ARK_POLICY_DB="$T14_PAUSE_VAULT/observability/policy.db" \
+    ARK_PORTFOLIO_ROOT="$T14_PORTFOLIO" \
+    ARK_LAUNCHAGENTS_DIR="$T14_LA" \
+    PATH="$T14_VAULT/bin:$PATH" \
+    bash "$VAULT_PATH/scripts/ark-continuous.sh" --tick >/dev/null 2>&1 || true
+  run_check 14 "Safety: PAUSE present → PAUSE_ACTIVE row + INBOX untouched" \
+    "p=\$(sqlite3 '$T14_PAUSE_VAULT/observability/policy.db' \"SELECT COUNT(*) FROM decisions WHERE class='continuous' AND decision='PAUSE_ACTIVE';\" 2>/dev/null); n=\$(find '$T14_PAUSE_VAULT/INBOX' -maxdepth 1 -type f -name '*.md' 2>/dev/null | wc -l | tr -d ' '); test \"\${p:-0}\" -ge 1 && test \"\${n:-0}\" -eq 1 && echo OK" \
+    "^OK$"
+  rm -rf "$T14_PAUSE_VAULT"
+
+  # 4b: Daily cap exceeded → DAILY_CAP_HIT, INBOX untouched
+  T14_CAP_VAULT=$(mktemp -d -t ark-tier14-cap.XXXXXX)
+  mkdir -p "$T14_CAP_VAULT/INBOX" "$T14_CAP_VAULT/observability"
+  ARK_HOME="$T14_CAP_VAULT" ARK_POLICY_DB="$T14_CAP_VAULT/observability/policy.db" \
+    bash -c "source '$VAULT_PATH/scripts/lib/policy-db.sh'; db_init" >/dev/null 2>&1
+  cat > "$T14_CAP_VAULT/INBOX/should-not-process.md" <<'T14_CAP_INBOX'
+---
+intent: resume
+---
+
+# should NOT be processed (daily cap)
+T14_CAP_INBOX
+  # Force cap=0 via canonical env var override; used=0 is ≥ cap=0 → DAILY_CAP_HIT
+  ARK_HOME="$T14_CAP_VAULT" \
+    ARK_POLICY_DB="$T14_CAP_VAULT/observability/policy.db" \
+    ARK_PORTFOLIO_ROOT="$T14_PORTFOLIO" \
+    ARK_LAUNCHAGENTS_DIR="$T14_LA" \
+    ARK_CONTINUOUS_DAILY_TOKEN_CAP=0 \
+    PATH="$T14_VAULT/bin:$PATH" \
+    bash "$VAULT_PATH/scripts/ark-continuous.sh" --tick >/dev/null 2>&1 || true
+  run_check 14 "Safety: daily cap=0 → DAILY_CAP_HIT row + INBOX untouched" \
+    "c=\$(sqlite3 '$T14_CAP_VAULT/observability/policy.db' \"SELECT COUNT(*) FROM decisions WHERE class='continuous' AND decision='DAILY_CAP_HIT';\" 2>/dev/null); n=\$(find '$T14_CAP_VAULT/INBOX' -maxdepth 1 -type f -name '*.md' 2>/dev/null | wc -l | tr -d ' '); test \"\${c:-0}\" -ge 1 && test \"\${n:-0}\" -eq 1 && echo OK" \
+    "^OK$"
+  rm -rf "$T14_CAP_VAULT"
+
+  # 4c: Lock contention → second tick logs LOCK_CONTENDED
+  T14_LOCK_VAULT=$(mktemp -d -t ark-tier14-lock.XXXXXX)
+  mkdir -p "$T14_LOCK_VAULT/INBOX" "$T14_LOCK_VAULT/observability"
+  ARK_HOME="$T14_LOCK_VAULT" ARK_POLICY_DB="$T14_LOCK_VAULT/observability/policy.db" \
+    bash -c "source '$VAULT_PATH/scripts/lib/policy-db.sh'; db_init" >/dev/null 2>&1
+  # Pre-create the lock dir at the canonical path ($VAULT_PATH/.continuous.lock)
+  # to simulate a concurrent tick already running.
+  mkdir -p "$T14_LOCK_VAULT/.continuous.lock" 2>/dev/null
+  ARK_HOME="$T14_LOCK_VAULT" \
+    ARK_POLICY_DB="$T14_LOCK_VAULT/observability/policy.db" \
+    ARK_PORTFOLIO_ROOT="$T14_PORTFOLIO" \
+    ARK_LAUNCHAGENTS_DIR="$T14_LA" \
+    PATH="$T14_VAULT/bin:$PATH" \
+    bash "$VAULT_PATH/scripts/ark-continuous.sh" --tick >/dev/null 2>&1 || true
+  run_check 14 "Safety: lock held → LOCK_CONTENDED row" \
+    "c=\$(sqlite3 '$T14_LOCK_VAULT/observability/policy.db' \"SELECT COUNT(*) FROM decisions WHERE class='continuous' AND decision='LOCK_CONTENDED';\" 2>/dev/null); test \"\${c:-0}\" -ge 1 && echo OK" \
+    "^OK$"
+  rm -rf "$T14_LOCK_VAULT"
+
+  # === T14.5 — Plist generation under ARK_LAUNCHAGENTS_DIR=$T14_LA ===
+  ARK_HOME="$T14_VAULT" \
+    ARK_POLICY_DB="$T14_DB" \
+    ARK_LAUNCHAGENTS_DIR="$T14_LA" \
+    bash "$VAULT_PATH/scripts/ark-continuous.sh" --install >/dev/null 2>&1 || true
+  T14_PLIST="$T14_LA/com.ark.continuous.plist"
+  run_check 14 "Plist: continuous plist written + plutil -lint OK + StartInterval + ark-continuous.sh ref" \
+    "[ -f '$T14_PLIST' ] && plutil -lint '$T14_PLIST' >/dev/null 2>&1 && grep -q 'StartInterval' '$T14_PLIST' && grep -q 'ark-continuous.sh' '$T14_PLIST' && echo OK" \
+    "^OK$"
+
+  # === T14.6 — Weekly digest generation ===
+  # Seed synthetic policy.db with a few rows so the digest has data
+  sqlite3 "$T14_DB" <<'T14_DIGEST_SEED' >/dev/null 2>&1
+INSERT OR IGNORE INTO decisions VALUES('20260420T100000Z-1111111111111111','2026-04-20T10:00:00Z',1,'budget','PROCEED','synthetic','{"tokens":1234,"customer":"acme"}',NULL,NULL);
+INSERT OR IGNORE INTO decisions VALUES('20260421T100001Z-2222222222222222','2026-04-21T10:00:01Z',1,'dispatch','codex','synthetic','{"tokens":4321,"customer":"acme"}',NULL,NULL);
+T14_DIGEST_SEED
+  T14_DIGEST_WEEK=$(date +%G-%V)
+  T14_DIGEST_FILE="$T14_VAULT/observability/weekly-digest-$T14_DIGEST_WEEK.md"
+  ARK_HOME="$T14_VAULT" \
+    ARK_POLICY_DB="$T14_DB" \
+    bash "$VAULT_PATH/scripts/ark-weekly-digest.sh" --generate >/dev/null 2>&1 || true
+  run_check 14 "Weekly digest: file produced + ≥6 section headers + WEEKLY_DIGEST_WRITTEN row" \
+    "[ -f '$T14_DIGEST_FILE' ] && n=\$(grep -cE '^## [0-9]+\\.' '$T14_DIGEST_FILE'); test \"\${n:-0}\" -ge 6 && c=\$(sqlite3 '$T14_DB' \"SELECT COUNT(*) FROM decisions WHERE class='continuous' AND decision='WEEKLY_DIGEST_WRITTEN';\" 2>/dev/null); test \"\${c:-0}\" -ge 1 && echo OK" \
+    "^OK$"
+
+  # === T14.7 — `read -p` regression sweep on continuous-path scripts ===
+  # Self-referential trap: build the regex character-class-wise so this very
+  # ark-verify.sh source line does not match itself when grep walks scripts/.
+  # The pattern below targets r-e-a-d-space-dash-p assembled at runtime, not
+  # the literal string in this comment. The verify scripts under audit are
+  # the three Phase 7 scripts (and only those).
+  # Mirror the in-script Test 14 hygiene regex: match only when r-e-a-d is the
+  # leading command on a line (with optional indentation), not when it appears
+  # inside string literals (echo "...read -p..."), comments, or test labels.
+  # Build character-class-wise so this very file does not self-match when this
+  # script is grepped.
+  T14_RE="^[[:space:]]*r"
+  T14_RE="${T14_RE}ead[[:space:]]+-p"
+  run_check 14 "Regression: no 'read -p' in continuous-path scripts" \
+    "n=\$(grep -nE '$T14_RE' '$VAULT_PATH/scripts/ark-continuous.sh' '$VAULT_PATH/scripts/lib/inbox-parser.sh' '$VAULT_PATH/scripts/ark-weekly-digest.sh' 2>/dev/null | wc -l | tr -d ' '); test \"\${n:-0}\" -eq 0 && echo OK" \
+    "^OK$"
+
+  # === T14.8 — Pause/resume/status subcommands work end-to-end ===
+  ARK_HOME="$T14_VAULT" ARK_POLICY_DB="$T14_DB" \
+    bash "$VAULT_PATH/scripts/ark-continuous.sh" --pause >/dev/null 2>&1
+  run_check 14 "Subcommand: pause creates PAUSE file" \
+    "[ -f '$T14_VAULT/PAUSE' ] && echo OK" \
+    "^OK$"
+  ARK_HOME="$T14_VAULT" ARK_POLICY_DB="$T14_DB" \
+    bash "$VAULT_PATH/scripts/ark-continuous.sh" --resume >/dev/null 2>&1
+  run_check 14 "Subcommand: resume removes PAUSE file" \
+    "[ ! -f '$T14_VAULT/PAUSE' ] && echo OK" \
+    "^OK$"
+  run_check 14 "Subcommand: status returns 0 + mentions Last tick / no ticks yet" \
+    "out=\$(ARK_HOME='$T14_VAULT' ARK_POLICY_DB='$T14_DB' bash '$VAULT_PATH/scripts/ark-continuous.sh' --status 2>&1) && echo \"\$out\" | grep -qE 'Last tick:' && echo OK" \
+    "^OK$"
+
+  # === T14.9 — Real-vault read-only invariants (Phase 4 lesson) ===
+  T14_DB_AFTER=$(_t14_md5 "$T14_REAL_DB")
+  T14_ESC_AFTER=$(_t14_md5 "$T14_REAL_ESC")
+  T14_UNI_AFTER=$(_t14_md5 "$T14_REAL_UNI")
+  T14_ANTI_AFTER=$(_t14_md5 "$T14_REAL_ANTI")
+  T14_PLIST_AFTER=$(_t14_md5 "$T14_REAL_PLIST")
+  T14_DIGEST_PLIST_AFTER=$(_t14_md5 "$T14_REAL_DIGEST_PLIST")
+  run_check 14 "Invariant: real policy.db md5 unchanged" \
+    "test '$T14_DB_BEFORE' = '$T14_DB_AFTER' && echo OK" \
+    "^OK$"
+  run_check 14 "Invariant: real ESCALATIONS.md md5 unchanged" \
+    "test '$T14_ESC_BEFORE' = '$T14_ESC_AFTER' && echo OK" \
+    "^OK$"
+  run_check 14 "Invariant: real universal-patterns.md md5 unchanged" \
+    "test '$T14_UNI_BEFORE' = '$T14_UNI_AFTER' && echo OK" \
+    "^OK$"
+  run_check 14 "Invariant: real anti-patterns.md md5 unchanged" \
+    "test '$T14_ANTI_BEFORE' = '$T14_ANTI_AFTER' && echo OK" \
+    "^OK$"
+  run_check 14 "Invariant: real ~/Library/LaunchAgents/com.ark.continuous.plist unchanged" \
+    "test '$T14_PLIST_BEFORE' = '$T14_PLIST_AFTER' && echo OK" \
+    "^OK$"
+  run_check 14 "Invariant: real ~/Library/LaunchAgents/com.ark.weekly-digest.plist unchanged" \
+    "test '$T14_DIGEST_PLIST_BEFORE' = '$T14_DIGEST_PLIST_AFTER' && echo OK" \
+    "^OK$"
+
+  # === Tiers 7-13 informational sweep (does NOT block Tier 14 pass count) ===
+  # Self-referential trap (Phase 4 lesson): Tiers 7-13 do NOT reference Tier 14,
+  # so recursive invocation is bounded.
+  echo ""
+  echo "  → Tier 7-13 regression sweep (informational):"
+  for _t in 7 8 9 10 11 12 13; do
+    _o=$(bash "$VAULT_PATH/scripts/ark-verify.sh" --tier "$_t" 2>&1)
+    _n=$(echo "$_o" | grep -oE '[0-9]+ passed' | head -1 | grep -oE '^[0-9]+')
+    _f=$(echo "$_o" | grep -oE '[0-9]+ failed' | head -1 | grep -oE '^[0-9]+')
+    echo "    Tier $_t: ${_n:-0} passed / ${_f:-0} failed"
+  done
+
+  # Cleanup
+  rm -rf "$T14_VAULT" "$T14_PORTFOLIO" "$T14_LA"
+  rm -f "$T14_TICK_LOG"
+fi
+
 # ━━━ Generate report ━━━
 TOTAL=$((PASS + WARN + FAIL + SKIP))
 EXIT_CODE=0
@@ -1617,6 +1937,7 @@ The CEO (you) reviews this report. Per-tier breakdown:
 - **Tier 11 (portfolio autonomy):** AOS Phase 5 — 3-project / 2-customer portfolio_decide stress + isolation
 - **Tier 12 (cross-customer learning):** AOS Phase 6 — synthetic 3-customer fixture, full promoter pipeline (scan → cluster → classify → apply), idempotency proof, real-vault isolation invariant
 - **Tier 13 (CEO Dashboard):** AOS Phase 6.5 — 3-tier dashboard (bash/Rust TUI/web), 7 sections rendered against synthetic seeded vault, NO_COLOR support, <2s Tier A runtime, Tier B build + smoke + no forbidden deps, Tier C HTTP serve + meta-refresh, real-vault md5 invariant, Tier 7-12 regression sweep
+- **Tier 14 (AOS Continuous Operation):** AOS Phase 7 — synthetic 3-intent INBOX lifecycle (resume + new-phase + promote-lessons), PAUSE / DAILY_CAP_HIT / LOCK_CONTENDED safety rails, plist generation under ARK_LAUNCHAGENTS_DIR override, weekly digest generation with 6 section headers, no `read -p` regression on continuous-path scripts, real vault + real ~/Library/LaunchAgents md5 invariants, Tier 7-13 informational regression sweep
 
 If any failure is critical, fix and re-run before using Ark on real work.
 
