@@ -324,6 +324,25 @@ run_phase() {
   # Step 6: Update STATE.md
   update_state "$phase_num" "complete"
 
+  # === Phase 3 (Plan 03-05): post-phase learner trigger ===
+  # Run the policy-learner over decisions from this phase. Non-fatal:
+  # learning is observability, not delivery. If the script is missing
+  # (deployment skew), warn and continue.
+  local _learner="$PROJECT_DIR/scripts/policy-learner.sh"
+  if [[ -x "$_learner" ]]; then
+    local _phase_started_at
+    _phase_started_at=$(date -u -v-1H +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
+      || date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
+      || date -u +%Y-%m-%dT%H:%M:%SZ)
+    log INFO "Phase $phase_num: triggering policy-learner (--since $_phase_started_at)"
+    mkdir -p "$PROJECT_DIR/.planning/delivery-logs"
+    bash "$_learner" --since "$_phase_started_at" \
+      >>"$PROJECT_DIR/.planning/delivery-logs/learner-phase-${phase_num}.log" 2>&1 \
+      || log WARN "policy-learner returned non-zero (non-fatal)"
+  else
+    log INFO "policy-learner.sh not present; skipping learning pass"
+  fi
+
   # Step 7: Record decision for brain learning
   record_decision "$phase_num" "complete" "success"
 
