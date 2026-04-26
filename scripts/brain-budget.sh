@@ -132,7 +132,23 @@ with open('$BUDGET_FILE', 'w') as f:
     notify-send "Brain Budget" "Tier: $old_tier → $new_tier" 2>/dev/null || true
   fi
 
-  # Also write to per-project notification file so SessionStart hook surfaces it
+  # Compute messages outside the heredoc to avoid bash case-in-heredoc issues
+  local meaning=""
+  local recommendation=""
+  case "$new_tier" in
+    GREEN)  meaning="Normal operation. All models available."
+            recommendation="Continue normal work." ;;
+    YELLOW) meaning="50% budget used. Routing demotes Opus → Sonnet to extend runway."
+            recommendation="Continue normal work." ;;
+    ORANGE) meaning="70% budget used. Free tier only (Codex, Gemini). Paid models suspended."
+            recommendation="Consider raising cap if phase needs paid tier: brain budget --set-cap <bigger>" ;;
+    RED)    meaning="85% budget used. Critical — fallback to regex extraction and cached templates."
+            recommendation="Phase will run with degraded quality. Review carefully before signing off." ;;
+    BLACK)  meaning="Budget exhausted. New AI dispatches BLOCKED."
+            recommendation="STOP. Reset phase budget (brain budget --reset) or raise cap (brain budget --set-cap <bigger>)." ;;
+  esac
+
+  # Per-project notification file (SessionStart hook surfaces this)
   cat > "$PROJECT_DIR/.planning/budget-notification.md" <<EOF
 # Budget Tier Change
 
@@ -143,22 +159,11 @@ Tier: **$old_tier → $new_tier**
 
 ## What This Means
 
-$(case "$new_tier" in
-  GREEN) echo "Normal operation. All models available." ;;
-  YELLOW) echo "50% budget used. Routing demotes Opus → Sonnet to extend runway." ;;
-  ORANGE) echo "70% budget used. Free tier only (Codex, Gemini). Paid models suspended." ;;
-  RED) echo "85% budget used. Critical — fallback to regex extraction and cached templates." ;;
-  BLACK) echo "Budget exhausted. New AI dispatches BLOCKED. Run \`brain budget --reset\` after phase completion or \`brain budget --set-cap <bigger>\`." ;;
-esac)
+$meaning
 
 ## Recommended Action
 
-$(case "$new_tier" in
-  GREEN|YELLOW) echo "Continue normal work." ;;
-  ORANGE) echo "Consider raising cap if phase needs paid tier: \`brain budget --set-cap <bigger>\`" ;;
-  RED) echo "Phase will run with degraded quality. Review carefully before signing off." ;;
-  BLACK) echo "STOP. Reset phase budget or wait for monthly rollover. Do not continue blind." ;;
-esac)
+$recommendation
 EOF
 }
 
