@@ -709,3 +709,118 @@ Tier 13 in `scripts/ark-verify.sh` covers all three tiers + regression sweep ove
 - Dispatcher: `scripts/ark` (search `dashboard)`)
 - Tier 13 verify: `scripts/ark-verify.sh` (search "Tier 13")
 - Plan-level history: `.planning/phases/06.5-ceo-dashboard/{06.5-01..06.5-08}-SUMMARY.md`
+
+## AOS Continuous Operation Contract (Phase 7)
+
+**Phase 7 substrate:** Cron-driven INBOX consumption. User authors intent in markdown at `~/vaults/ark/INBOX/`; macOS launchd daemon ticks every 15 min, parses intent files, dispatches to `ark create` / `ark deliver` / `ark promote-lessons`, archives processed files, escalates true blockers via `ESCALATIONS.md`, and writes a weekly digest. Closes the AOS journey from the original ROADMAP North Star (user authors intent → walks away → returns to find projects shipped).
+
+### Surfaces
+
+- `scripts/ark-continuous.sh` — daemon (tick + INBOX lifecycle + lock + cap + health monitor + subcommands).
+- `scripts/lib/inbox-parser.sh` — frontmatter parser + intent dispatcher (sourceable Bash 3 lib).
+- `scripts/ark-weekly-digest.sh` — weekly aggregator + standalone plist generator.
+- `scripts/ark continuous <subcmd>` — user-facing dispatcher arm (install / uninstall / status / pause / resume / tick).
+
+### INBOX intent file format
+
+- Files at `~/vaults/ark/INBOX/*.md`.
+- YAML-ish frontmatter:
+  - `intent` (required): one of `new-project`, `new-phase`, `resume`, `promote-lessons`.
+  - `customer` (default `scratch`).
+  - `priority` (default `medium`).
+  - `phase` (only for `new-phase` intent).
+- Body: first non-blank line (with leading `# ` stripped) used as the description argument.
+
+### Intent dispatch table
+
+| Intent             | Routes to                                            |
+|--------------------|------------------------------------------------------|
+| `new-project`      | `ark create "<desc>" --customer "<customer>"`       |
+| `new-phase`        | `ark deliver --phase <N>`                            |
+| `resume`           | `ark deliver` (portfolio engine picks next project)  |
+| `promote-lessons`  | `ark promote-lessons`                                |
+
+### Intent file lifecycle
+
+- **Success:** `mv` to `INBOX/processed/<UTC-date>/`.
+- **Dispatch failure:** rename to `<file>.failed` + ESCALATIONS.md entry (class `repeated-failure`).
+- **Parse failure:** rename to `<file>.malformed` + audit row (class `INBOX_MALFORMED`).
+- **Files NEVER silently dropped.**
+
+### Six safety rails
+
+1. **PAUSE kill-switch** — file at `~/vaults/ark/PAUSE` halts every tick; daemon emits `PAUSE_ACTIVE` audit row and exits cleanly.
+2. **mkdir-lock** — `~/vaults/ark/.continuous.lock` (atomic mkdir) prevents tick overlap; contended ticks emit `LOCK_CONTENDED` and exit.
+3. **Daily token cap** — `policy.yml::continuous.daily_token_cap` (default 50000); on hit emit `DAILY_CAP_HIT` and SUSPEND until UTC date rollover.
+4. **Auto-pause on 3 consecutive failure-ticks** — daemon writes PAUSE file + emits `AUTO_PAUSED` + escalates.
+5. **Stuck-phase detection** — STATE.md mtime > 24h AND no commits in 24h; 3 consecutive detections within 60 min on same `(project, phase)` → ESCALATIONS entry (24h dedupe).
+6. **Weekly digest separate cron** — independent `com.ark.weekly-digest.plist` (Sunday 09:00 local) so a hung daemon never blocks the digest.
+
+### Audit decision classes (13 total)
+
+All decisions logged via `_policy_log "continuous" "<DECISION>" ...`:
+
+| Decision                  | Trigger                                                            |
+|---------------------------|--------------------------------------------------------------------|
+| `TICK_START`              | Daemon entered tick body                                           |
+| `TICK_COMPLETE`           | Daemon finished tick (any outcome)                                 |
+| `INBOX_DISPATCH`          | Intent file routed to subcommand                                   |
+| `INBOX_PROCESSED`         | Subcommand exit 0 → file archived                                  |
+| `INBOX_FAILED`            | Subcommand exit non-0 → `.failed` rename + ESCALATIONS             |
+| `INBOX_MALFORMED`         | Frontmatter parse failure → `.malformed` rename                    |
+| `LOCK_CONTENDED`          | mkdir-lock acquisition failed                                      |
+| `PAUSE_ACTIVE`            | PAUSE file present at tick start                                   |
+| `DAILY_CAP_HIT`           | Daily token cap reached → SUSPEND until UTC rollover               |
+| `AUTO_PAUSE_3_FAIL`       | 3 consecutive failure-ticks → PAUSE created                        |
+| `STUCK_PHASE_DETECTED`    | Health monitor detected 24h-stuck phase                            |
+| `STUCK_ESCALATED`         | Stuck phase escalated to ESCALATIONS (24h dedupe)                  |
+| `WEEKLY_DIGEST_WRITTEN`   | Weekly digest aggregator wrote `weekly-digest-YYYY-WW.md`          |
+
+### launchd plists (macOS)
+
+- `~/Library/LaunchAgents/com.ark.continuous.plist`
+  - `RunAtLoad = true`, `StartInterval = tick_interval_min * 60` (default 900s = 15 min).
+  - Generated atomically by `continuous_install` under `ARK_LAUNCHAGENTS_DIR` test override.
+- `~/Library/LaunchAgents/com.ark.weekly-digest.plist`
+  - `StartCalendarInterval` Weekday=0 Hour=9 Minute=0 (Sunday 09:00 local).
+  - Independent cron — runs even if main daemon is paused or hung.
+
+### Read-only invariants
+
+The continuous daemon writes only to:
+
+- `INBOX/`, `INBOX/processed/<date>/`, `INBOX/*.failed`, `INBOX/*.malformed`
+- `ESCALATIONS.md` (delegates to existing single-writer)
+- `PAUSE`, `.continuous.lock`
+- `observability/policy.db` (via `_policy_log` single-writer)
+- `observability/continuous-operation.log`
+- `observability/weekly-digest-YYYY-WW.md`
+
+Daemon NEVER writes outside `~/vaults/ark/`. Never invokes `gh repo create` (Phase 4 `ARK_CREATE_GITHUB` env gate carried forward — defaults remain unset).
+
+### Verification (Tier 14)
+
+Tier 14 in `scripts/ark-verify.sh` covers the contract in 28 checks:
+
+- **INBOX lifecycle (3 intents):** synthetic `resume`, `new-phase`, `promote-lessons` files dropped → asserted all 3 reach `INBOX/processed/<UTC-date>/`.
+- **Safety rails:** PAUSE / DAILY_CAP_HIT / LOCK_CONTENDED smoke under `ARK_FORCE_*` test hooks.
+- **Plist generation:** `continuous_install` under `ARK_LAUNCHAGENTS_DIR` override produces a syntactically valid plist; `plutil -lint` passes.
+- **Weekly digest:** synthetic seeded vault → `ark-weekly-digest.sh` writes `weekly-digest-YYYY-WW.md` with all 6 expected section headers.
+- **Read-p sweep:** `grep -rn 'read -p'` across `scripts/ark-continuous.sh`, `scripts/lib/inbox-parser.sh`, `scripts/ark-weekly-digest.sh` returns zero hits (no manual-gate regression).
+- **Real-vault md5 invariants:** `policy.db`, `ESCALATIONS.md`, `universal-patterns.md`, `anti-patterns.md` md5 unchanged across the synthetic-vault smoke run.
+- **Real ~/Library/LaunchAgents invariant:** `com.ark.continuous.plist` and `com.ark.weekly-digest.plist` md5 unchanged when test runs use `ARK_LAUNCHAGENTS_DIR` override.
+
+28/28 passing. Phase 7 exit gate met.
+
+### Cross-references
+
+- Daemon: `scripts/ark-continuous.sh`
+- INBOX parser: `scripts/lib/inbox-parser.sh`
+- Weekly digest: `scripts/ark-weekly-digest.sh`
+- Dispatcher: `scripts/ark` (search `cmd_continuous`)
+- Tier 14 verify: `scripts/ark-verify.sh` (search "Tier 14")
+- Plan-level history: `.planning/phases/07-continuous-operation/{07-01..07-08}-SUMMARY.md`
+
+### AOS journey terminal
+
+**Phase 7 closes the AOS journey** (Phases 2 → 2.5 → 3 → 4 → 5 → 6 → 6.5 → 7). Original ROADMAP.md North Star achieved: user authors intent in markdown, walks away, returns to find projects shipped (or true blockers escalated via async ESCALATIONS.md queue). Phase 8 (Production Hardening + Reporting) is post-AOS productionization, not autonomy.
