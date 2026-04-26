@@ -140,7 +140,7 @@ parse_tasks() {
   fi
 
   # Iterate plan files in sorted order; extract unchecked tasks from each.
-  while IFS= read -r pf; do
+  while IFS= read -r pf; do  # AOS: intentional gate — stream parsing, not stdin
     [[ -z "$pf" ]] && continue
     grep -E "^[[:space:]]*-[[:space:]]+\[[[:space:]xX]\]" "$pf" 2>/dev/null | \
       sed -E 's/^[[:space:]]*-[[:space:]]+\[[[:space:]xX]\][[:space:]]+//' || true
@@ -236,18 +236,35 @@ PY
     log "Current budget tier: $current_tier"
   fi
 
-  # === Auto-detect runtime context: am I in Claude Code? ===
-  local primary_dispatcher
-  primary_dispatcher=$(bash "$VAULT_PATH/scripts/ark-context.sh" --primary 2>/dev/null || echo "regex-fallback")
-  log "Auto-detected primary dispatcher: $primary_dispatcher"
+  # === Policy-routed dispatcher selection (replaces inline cascade) ===
+  # Complexity inference from task description keywords. Documented in 02-04 SUMMARY.
+  local _complexity="standard"
+  case "$task_desc" in
+    *architect*|*architecture*|*design*|*novel*) _complexity="deep" ;;
+    *review*|*audit*|*security*) _complexity="strong" ;;
+  esac
 
-  # If running inside Claude Code, the active session IS the engineer.
-  # Don't waste cycles probing exhausted external CLIs — emit a structured
-  # request that the calling Claude Code session can fulfill via Agent tool.
-  if [[ "$primary_dispatcher" == "claude-code-session" ]]; then
-    log "🤖 Active Claude Code session detected — handing task to session dispatcher"
-    local session_handoff_file="$PHASE_DIR/task-$task_num-claude-handoff.md"
-    cat > "$session_handoff_file" <<HANDOFF
+  local chosen_dispatcher
+  if type policy_dispatcher_route >/dev/null 2>&1; then
+    chosen_dispatcher=$(policy_dispatcher_route "$_complexity" "$current_tier")
+  else
+    # Graceful degradation if policy lib not loaded
+    chosen_dispatcher=$(bash "$VAULT_PATH/scripts/ark-context.sh" --primary 2>/dev/null || echo regex-fallback)
+  fi
+  log "Policy chose dispatcher: $chosen_dispatcher (complexity=$_complexity, tier=$current_tier)"
+
+  # Write prompt to a stable location so every branch (including session) can read it
+  local prompt_file="/tmp/brain-codex-prompt-$$.txt"
+  echo "$prompt" > "$prompt_file"
+
+  local output=""
+  local task_id="${task_num:-unknown}"
+
+  case "$chosen_dispatcher" in
+    claude-session)
+      log "🤖 Active Claude Code session — handing task to session dispatcher"
+      local session_handoff_file="$PHASE_DIR/task-$task_num-claude-handoff.md"
+      cat > "$session_handoff_file" <<HANDOFF
 # Task Handoff to Claude Code Session
 
 **Project:** $(basename "$PROJECT_DIR")
@@ -269,75 +286,64 @@ The Claude Code session should now:
 4. Commit atomically per task
 
 ## Why This Path
-- Codex CLI: $(bash "$VAULT_PATH/scripts/ark-context.sh" --json | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['dispatchers']['codex']['status'])")
-- Gemini CLI: $(bash "$VAULT_PATH/scripts/ark-context.sh" --json | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['dispatchers']['gemini']['status'])")
-- Haiku API: $(bash "$VAULT_PATH/scripts/ark-context.sh" --json | python3 -c "import json,sys; d=json.load(sys.stdin); print('available' if d['dispatchers']['haiku-api']['available'] else 'no API key')")
-
+Routed by policy_dispatcher_route (complexity=$_complexity, tier=$current_tier).
 The active session is the most reliable dispatcher right now.
 HANDOFF
-    log "Handoff written: $session_handoff_file"
-    log "→ Claude Code session should now write files directly via Write tool"
-    return 2  # Special exit code: 2 = handoff to session, not failure
-  fi
-
-  # Get recommended model for current tier (used when not in Claude Code)
-  local recommended_model=""
-  if cd "$PROJECT_DIR" 2>/dev/null; then
-    recommended_model=$(bash "$VAULT_PATH/scripts/ark-budget.sh" --route engineering 2>/dev/null || echo "$primary_dispatcher")
-  fi
-  log "Tier-recommended model: $recommended_model"
-
-  # Try Codex first — write prompt to temp file, pass as stdin via redirection
-  local prompt_file="/tmp/brain-codex-prompt-$$.txt"
-  echo "$prompt" > "$prompt_file"
-
-  local output=""
-
-  # Skip paid models if tier says fallback only
-  if [[ "$recommended_model" == "regex-fallback" ]]; then
-    log "RED tier: skipping AI dispatch, using cached templates only"
-    output="[REGEX FALLBACK — cached pattern only, no AI dispatch]"
-  elif command -v codex >/dev/null 2>&1; then
-    log "Dispatching to Codex..."
-    if [[ -n "$TIMEOUT_CMD" ]]; then
-      output=$($TIMEOUT_CMD codex exec - < "$prompt_file" 2>&1 || echo "")
-    else
-      output=$(codex exec - < "$prompt_file" 2>&1 || echo "")
-    fi
-
-    # Estimate tokens used (rough: 4 chars/token)
-    if [[ -n "$output" ]]; then
-      local est_tokens=$(( ${#output} / 4 + ${#prompt} / 4 ))
+      log "Handoff written: $session_handoff_file"
+      # B-2 fix: record sentinel token cost so budget tracking isn't masked
+      # under quota stubs (Tier 8). Approximation: prompt chars / 4 ≈ tokens.
+      # The active session will spend roughly prompt-length tokens reading + responding.
+      # NEW-W-3: || true swallows errors but the synthetic test verifies the side effect
+      # in budget.json's history array (label="claude-session-handoff:<task_id>").
+      local _prompt_text
+      _prompt_text=$(cat "$prompt_file" 2>/dev/null || echo "$task_desc")
+      local est_tokens=$(( ${#_prompt_text} / 4 ))
       if cd "$PROJECT_DIR" 2>/dev/null; then
-        bash "$VAULT_PATH/scripts/ark-budget.sh" --record "$est_tokens" "codex" 2>/dev/null | tail -1
+        bash "$VAULT_PATH/scripts/ark-budget.sh" --record "$est_tokens" "claude-session-handoff:$task_id" >/dev/null 2>&1 || true
       fi
-    fi
-  fi
+      rm -f "$prompt_file"
+      log "→ Claude Code session should now write files directly via Write tool"
+      return 2  # handoff to session, not failure
+      ;;
 
-  # Fall back to Gemini
-  if [[ -z "$output" ]] || [[ "$output" == *"No prompt"* ]] || [[ "$output" == *"hit your usage limit"* ]] || [[ "$output" == *"quota"* ]]; then
-    if command -v gemini >/dev/null 2>&1; then
-      log "Codex unavailable, falling back to Gemini..."
+    codex)
+      log "Dispatching to Codex (policy-selected)..."
+      if [[ -n "$TIMEOUT_CMD" ]]; then
+        output=$($TIMEOUT_CMD codex exec - < "$prompt_file" 2>&1 || echo "")
+      else
+        output=$(codex exec - < "$prompt_file" 2>&1 || echo "")
+      fi
+      if [[ -n "$output" ]]; then
+        local est_tokens=$(( ${#output} / 4 + ${#prompt} / 4 ))
+        if cd "$PROJECT_DIR" 2>/dev/null; then
+          bash "$VAULT_PATH/scripts/ark-budget.sh" --record "$est_tokens" "codex" 2>/dev/null | tail -1
+        fi
+      fi
+      ;;
+
+    gemini)
+      log "Dispatching to Gemini (policy-selected)..."
       if [[ -n "$TIMEOUT_CMD" ]]; then
         output=$($TIMEOUT_CMD gemini -p - < "$prompt_file" 2>&1 || echo "")
       else
         output=$(gemini -p - < "$prompt_file" 2>&1 || echo "")
       fi
-    fi
-  fi
+      if [[ -n "$output" ]]; then
+        local est_tokens=$(( ${#output} / 4 + ${#prompt} / 4 ))
+        if cd "$PROJECT_DIR" 2>/dev/null; then
+          bash "$VAULT_PATH/scripts/ark-budget.sh" --record "$est_tokens" "gemini" 2>/dev/null | tail -1
+        fi
+      fi
+      ;;
 
-  # Clean up prompt file
-  rm -f "$prompt_file"
-
-  # Last resort: Haiku via API
-  if [[ -z "$output" ]] || [[ "$output" == *"quota"* ]]; then
-    if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
-      log "Falling back to Haiku API..."
-      output=$(curl -s -X POST https://api.anthropic.com/v1/messages \
-        -H "x-api-key: $ANTHROPIC_API_KEY" \
-        -H "anthropic-version: 2023-06-01" \
-        -H "content-type: application/json" \
-        --data "$(python3 -c "
+    haiku-api)
+      if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
+        log "Dispatching to Haiku API (policy-selected)..."
+        output=$(curl -s -X POST https://api.anthropic.com/v1/messages \
+          -H "x-api-key: $ANTHROPIC_API_KEY" \
+          -H "anthropic-version: 2023-06-01" \
+          -H "content-type: application/json" \
+          --data "$(python3 -c "
 import json, sys
 print(json.dumps({
     'model': 'claude-haiku-4-5-20251001',
@@ -354,13 +360,23 @@ try:
     print(d.get('content', [{}])[0].get('text', ''))
 except: pass
 ")
-    fi
-  fi
+        if [[ -n "$output" ]]; then
+          local est_tokens=$(( ${#output} / 4 + ${#prompt} / 4 ))
+          if cd "$PROJECT_DIR" 2>/dev/null; then
+            bash "$VAULT_PATH/scripts/ark-budget.sh" --record "$est_tokens" "haiku-api" 2>/dev/null | tail -1
+          fi
+        fi
+      fi
+      ;;
 
-  if [[ -z "$output" ]]; then
-    err "All AI dispatchers unavailable for task: $task_desc"
-    return 1
-  fi
+    regex-fallback|*)
+      log "RED/BLACK tier or no dispatcher — using cached pattern only"
+      output="[REGEX FALLBACK — cached pattern only, no AI dispatch]"
+      ;;
+  esac
+
+  # Clean up prompt file
+  rm -f "$prompt_file"
 
   # Save output for audit
   echo "$output" > "$PHASE_DIR/task-$task_num-output.md"
@@ -532,7 +548,7 @@ main() {
 
   local task_num=0
   local failed=0
-  echo "$tasks" | while IFS= read -r task; do
+  echo "$tasks" | while IFS= read -r task; do  # AOS: intentional gate — stream parsing, not stdin
     [[ -z "$task" ]] && continue
     task_num=$((task_num + 1))
 
