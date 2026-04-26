@@ -79,17 +79,19 @@ The following phases are the full AOS journey. Each phase removes one class of "
 
 **Status:** ✅ Complete — see .planning/phases/05-portfolio-autonomy/
 
-### Phase 6 — AOS: Cross-Customer Learning Autonomy
+### Phase 6 — AOS: Cross-Customer Learning Autonomy (complete)
 **Goal:** Lessons learned in one customer auto-promote to universal when the same pattern recurs in 2+ customers.
 
-- [ ] `scripts/lesson-promoter.sh` — daemon that reads per-customer `tasks/lessons.md` files
-- [ ] Detects pattern recurrence across customers (RBAC lockout in 3 customers → auto-promote)
-- [ ] Writes consolidated lessons to `~/vaults/ark/lessons/universal-patterns.md`
-- [ ] Auto-deprecates customer-specific lessons that became universal (with link)
-- [ ] Anti-pattern detection: same anti-pattern in 2+ customers → auto-flag in bootstrap templates
-- [ ] Tier 12 verify: synthetic 3-customer dataset → assert auto-promotion triggers correctly
+- [x] `scripts/lesson-promoter.sh` — daemon that reads per-customer `tasks/lessons.md` files
+- [x] Detects pattern recurrence across customers (RBAC lockout in 3 customers → auto-promote)
+- [x] Writes consolidated lessons to `~/vaults/ark/lessons/universal-patterns.md`
+- [x] Auto-deprecates customer-specific lessons that became universal (with link)
+- [x] Anti-pattern detection: same anti-pattern in 2+ customers → auto-flag in bootstrap templates
+- [x] Tier 12 verify: synthetic 3-customer dataset → assert auto-promotion triggers correctly
 
-**Exit criteria:** Real cross-customer pattern (e.g., RBAC lockout) is auto-promoted within 1 week of the second occurrence. Bootstrap templates auto-update with the new lesson.
+**Exit criteria:** Real cross-customer pattern (e.g., RBAC lockout) is auto-promoted within 1 week of the second occurrence. Bootstrap templates auto-update with the new lesson. **Met** — Tier 12 24/24, Tier 7/8/9/10/11 retained at 14/25/20/22/16.
+
+**Status:** ✅ Complete — see .planning/phases/06-cross-customer-learning/
 
 ### Phase 7 — AOS: Continuous Operation
 **Goal:** Ark runs continuously via cron. User writes intent in markdown files; Ark consumes the queue and ships.

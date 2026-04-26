@@ -2,22 +2,40 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: "Phase 5 (AOS: Portfolio Autonomy)"
-status: completed
-last_updated: "2026-04-26T17:53:02.715Z"
+current_phase: "Phase 6 (AOS: Cross-Customer Learning Autonomy)"
+status: complete
+last_updated: "2026-04-26T19:00:00Z"
 progress:
-  total_phases: 7
-  completed_phases: 4
-  total_plans: 39
-  completed_plans: 37
+  total_phases: 9
+  completed_phases: 6
+  total_plans: 41
+  completed_plans: 39
   percent: 95
 ---
 
 # Ark — Implementation State
 
-**Last updated:** 2026-04-26T18:30:00Z
-**Current Phase:** Phase 5 (AOS: Portfolio Autonomy)
+**Last updated:** 2026-04-26T19:00:00Z
+**Current Phase:** Phase 6 (AOS: Cross-Customer Learning Autonomy)
 **Status:** complete
+
+## Plan-count audit (2026-04-26, drift reconciliation)
+
+Plan 06-03 ran a `gsd-tools` state recompute that overwrote 05-07's hand-set frontmatter values (5/7, 41/41 → 4/7, 37/39). 06-06 reconciles by counting the disk truth directly:
+
+| Phase | PLAN.md files | SUMMARY.md files | Status |
+|-------|--------------:|-----------------:|--------|
+| Phase 0 — Bootstrap | 0 | 0 | complete (narrative; pre-`.planning/phases/`) |
+| Phase 1 — GSD Integration | 1 (`PLAN.md`) | 0 | in-progress (3 of 10 ROADMAP items unchecked) |
+| Phase 2 — Delivery Autonomy | 10 | 10 | complete |
+| Phase 2.5 — SQLite backend | 1 (`PLAN.md`) | 0 | complete (substrate plan; outcome inlined in Phase 3 SUMMARY chain) |
+| Phase 3 — Self-Improving Self-Heal | 8 | 8 | complete |
+| Phase 4 — Bootstrap Autonomy | 8 | 8 | complete |
+| Phase 5 — Portfolio Autonomy | 7 | 7 | complete |
+| Phase 6 — Cross-Customer Learning | 6 | 6 | complete (after this plan) |
+| **Totals** | **41 PLAN.md** | **39 SUMMARY.md** | — |
+
+`total_plans: 41` reflects the 41 PLAN.md files on disk. `completed_plans: 39` reflects the 39 SUMMARY.md files (Phase 1 PLAN.md + Phase 2.5 PLAN.md remain SUMMARY-less; their narratives are folded into Phase 3+ closure docs). `total_phases: 9` enumerates Phases 0,1,2,2.5,3,4,5,6,7. `completed_phases: 6` counts Phases 0,2,2.5,3,4,5,6 marked complete in this file (note Phase 1 is in-progress and excluded; if Phase 1 closes, this count moves to 7). The previous Phase 5 frontmatter (`completed_phases: 4, completed_plans: 37`) was the gsd-tools recompute residual and undercounted by 2 phases / 2 plans.
 
 ## Phase 0 — Bootstrap (complete)
 
@@ -119,6 +137,23 @@ See `.planning/phases/05-portfolio-autonomy/`
 | 05-06 | Tier 11 verify suite (synthetic 3-project / 2-customer fixture, 16 checks; isolated mktemp vault; real DB md5 invariant) |
 | 05-07 | REQ-AOS-23..30 minted; STATE.md Phase 5 close; ROADMAP.md checkboxes; STRUCTURE.md AOS Portfolio Autonomy Contract; SKILL.md Phase 5 posture |
 
-## Phase 6+ — Future
+## Phase 6 — AOS: Cross-Customer Learning Autonomy (complete)
 
-Next per `.planning/ROADMAP.md`: **Phase 6 — Cross-Customer Learning Autonomy** (lessons learned in one customer auto-promote to universal when the same pattern recurs in 2+ customers; Tier 12 verify).
+See `.planning/phases/06-cross-customer-learning/`
+
+**Goal:** Lessons learned in one customer auto-promote to universal when the same pattern recurs across ≥2 customers (≥3 combined occurrences, ≥60% Jaccard token-overlap similarity). Anti-patterns route to bootstrap; conflicts surface for manual review.
+
+**Exit gate:** Tier 12 24/24 + Tier 7/8/9/10/11 retained — confirmed `bash scripts/ark-verify.sh --tier 7` 14/14, `--tier 8` 25/25, `--tier 9` 20/20, `--tier 10` 22/22, `--tier 11` 16/16, `--tier 12` 24/24.
+
+| Plan | Outcome |
+|------|---------|
+| 06-01 | `scripts/lib/lesson-similarity.sh`: Jaccard token-overlap primitive (sourceable Bash 3 lib); `lesson_similarity <a> <b>` returns 0..100; 14/14 self-test; real-lesson cross-pairs score 2–5% (meaningful cross-customer signal floor) |
+| 06-02 | `scripts/lesson-promoter.sh`: discovery (`promoter_scan_lessons`) + clustering (`promoter_cluster`, ≥60% similarity) + classification (`promoter_classify` → PROMOTE/DEPRECATED/MEDIOCRE TSV); 18/18 self-test against isolated tmp portfolio; sentinel section laid for 06-03 apply-pending body |
+| 06-03 | `promoter_apply_pending`: durable side-effects under mkdir-lock + atomic tmp+mv; managed-section format on universal-patterns.md and anti-patterns.md; per-cluster canonical marker for idempotency; `_policy_log lesson_promote PROMOTED|DEPRECATED|MEDIOCRE_KEPT_PER_CUSTOMER` audit class minted |
+| 06-04 | `scripts/ark` `promote-lessons` subcommand (manual surface, default `--since 7-days-ago --apply`); `scripts/ark-deliver.sh::run_phase` post-phase hook (after Phase 3 policy-learner trigger; `--since 1-hour-ago --apply`; non-fatal); both routes use sourced-subshell invocation to bypass single-flag CLI dispatcher |
+| 06-05 | Tier 12 verify suite: synthetic 3-customer fixture (8 lessons), 24 checks (10 wiring/static + 14 dynamic-pipeline) under mktemp portfolio + tmp git vault + tmp policy.db; real-vault md5 invariant for universal-patterns.md, anti-patterns.md, policy.db; idempotency assertions on re-run |
+| 06-06 | REQ-AOS-31..39 minted (this plan); STATE.md Phase 6 close + drift reconciliation; ROADMAP.md checkboxes flipped; STRUCTURE.md AOS Cross-Customer Learning Contract; SKILL.md Phase 6 posture |
+
+## Phase 7 — Future
+
+Next per `.planning/ROADMAP.md`: **Phase 7 — Continuous Operation** (cron-driven INBOX consumption; user writes intent in markdown, Ark consumes the queue and ships; weekly digest; health monitor; Tier 13 verify).
