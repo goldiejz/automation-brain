@@ -378,6 +378,38 @@ except: pass
   # Clean up prompt file
   rm -f "$prompt_file"
 
+  # === 02-06 Task 2: invoke self-heal.sh --retry BEFORE policy_dispatch_failure ===
+  # Layered retry contract (CONTEXT.md decision #4): 1st enriched, 2nd model escalate,
+  # 3rd queue. self-heal.sh layered refactor (02-06b) owns the cross-invocation retry.
+  # Exit codes: 0 = recovered (use repopulated output); 1 = fall through;
+  # 2 = already escalated by self-heal layer 3 (don't double-escalate, fail fast).
+  if [[ -z "$output" && "$chosen_dispatcher" != "claude-session" ]]; then
+    if [[ -x "$VAULT_PATH/scripts/self-heal.sh" ]]; then
+      local _self_heal_out="$PHASE_DIR/task-$task_num-self-heal-out.md"
+      bash "$VAULT_PATH/scripts/self-heal.sh" --retry "task-$task_num" "$prompt_file" \
+        > "$_self_heal_out" 2>&1
+      local _sh_rc=$?
+      case $_sh_rc in
+        0)
+          log "Self-heal recovered task $task_num — using retry output"
+          output=$(cat "$_self_heal_out")
+          ;;
+        2)
+          err "Self-heal escalated task $task_num to ESCALATIONS.md (layer 3)"
+          rm -f "$prompt_file"
+          return 1
+          ;;
+        *)
+          # 1 or other: fall through to policy_dispatch_failure below
+          :
+          ;;
+      esac
+    fi
+  fi
+
+  # Clean up prompt file again in case self-heal didn't
+  rm -f "$prompt_file"
+
   # === Task 2b: policy_dispatch_failure for empty-output / all-dispatchers-down ===
   # claude-session branch already returned 2 above (handled separately) — excluded here.
   if [[ -z "$output" && "$chosen_dispatcher" != "claude-session" ]]; then

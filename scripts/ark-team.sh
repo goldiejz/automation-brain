@@ -21,6 +21,16 @@ PHASE_NUM="${2:?phase number required}"
 
 VAULT_PATH="${ARK_HOME:-$HOME/vaults/ark}"
 
+# === AOS policy lib + escalations (graceful degradation if missing) ===
+if [[ -f "$VAULT_PATH/scripts/ark-policy.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "$VAULT_PATH/scripts/ark-policy.sh"
+fi
+if [[ -f "$VAULT_PATH/scripts/ark-escalations.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "$VAULT_PATH/scripts/ark-escalations.sh"
+fi
+
 # Resolve phase dir respecting GSD layout (phases/NN-slug/) or legacy (phase-N/)
 source "$VAULT_PATH/scripts/lib/gsd-shape.sh"
 PHASE_DIR=$(gsd_resolve_phase_dir "$PHASE_NUM" "$PROJECT_DIR")
@@ -42,29 +52,126 @@ role_log() {
 }
 
 # === Helper: dispatch a role to AI ===
+# dispatch_role <role_name> <prompt_file> <output_file> [complexity]
+# Retry contract (LOCKED):
+#   retry_count starts at 0; on failure, post-increment and check guard.
+#   Guard: retry_count -lt 3 means we have a retry budget left.
+#   max N retries via guard; on exhaustion, post-loop block always escalates.
+#   Total dispatches per role per invocation: 1 initial + up to 3 retries = 4 max.
 dispatch_role() {
   local role_name="$1"
   local prompt_file="$2"
   local output_file="$3"
+  local complexity="${4:-standard}"
+  local count_file="$TEAM_DIR/${role_name}-retry-count.txt"
+  local retry_count
+  retry_count=$(cat "$count_file" 2>/dev/null || echo 0)
+
+  local chosen
+  if type policy_dispatcher_route >/dev/null 2>&1; then
+    chosen=$(policy_dispatcher_route "$complexity" GREEN)
+  else
+    chosen=$(command -v codex >/dev/null && echo codex || (command -v gemini >/dev/null && echo gemini || echo regex-fallback))
+  fi
 
   local TIMEOUT_CMD=""
   command -v gtimeout >/dev/null && TIMEOUT_CMD="gtimeout 180"
-  command -v timeout >/dev/null && TIMEOUT_CMD="timeout 180"
+  command -v timeout  >/dev/null && TIMEOUT_CMD="timeout 180"
 
-  # Try Codex first (free)
   local output=""
-  if command -v codex >/dev/null 2>&1; then
-    output=$($TIMEOUT_CMD codex exec - < "$prompt_file" 2>&1 || echo "")
+  case "$chosen" in
+    claude-session)
+      cat > "$output_file" <<H
+# $role_name HANDOFF — active Claude Code session expected to fulfill
+# Prompt file: $prompt_file
+# Phase: $PHASE_NUM
+verdict: PENDING_SESSION
+H
+      return 2
+      ;;
+    codex)
+      output=$($TIMEOUT_CMD codex exec - < "$prompt_file" 2>&1 || echo "")
+      ;;
+    gemini)
+      output=$($TIMEOUT_CMD gemini -p - < "$prompt_file" 2>&1 || echo "")
+      ;;
+    haiku-api)
+      if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
+        output=$(curl -s -X POST https://api.anthropic.com/v1/messages \
+          -H "x-api-key: $ANTHROPIC_API_KEY" -H "anthropic-version: 2023-06-01" -H "content-type: application/json" \
+          --data "$(jq -Rs --arg m claude-haiku-4-5-20251001 '{model:$m,max_tokens:4000,messages:[{role:"user",content:.}]}' < "$prompt_file" 2>/dev/null)" 2>/dev/null)
+      fi
+      ;;
+    regex-fallback)
+      output="[REGEX FALLBACK — $role_name not run]"
+      ;;
+  esac
+
+  # Failure detection
+  local failed=false
+  if [[ -z "$output" ]] || echo "$output" | grep -qiE "QUOTA_EXHAUSTED|TerminalQuotaError|hit your usage limit|capacity.*reset|^quota$"; then
+    failed=true
   fi
 
-  # Fall back to Gemini
-  if [[ -z "$output" ]] || [[ "$output" == *"No prompt"* ]] || [[ "$output" == *"hit your usage limit"* ]] || [[ "$output" == *"quota"* ]]; then
-    if command -v gemini >/dev/null 2>&1; then
-      output=$($TIMEOUT_CMD gemini -p - < "$prompt_file" 2>&1 || echo "")
+  if $failed; then
+    local verdict="RETRY_NEXT_TIER"
+    if type policy_dispatch_failure >/dev/null 2>&1; then
+      verdict=$(policy_dispatch_failure "$role_name" "$retry_count")
     fi
+    # Post-increment and persist
+    retry_count=$((retry_count + 1))
+    echo "$retry_count" > "$count_file"
+
+    case "$verdict" in
+      RETRY_NEXT_TIER)
+        if [[ "$retry_count" -lt 3 ]]; then
+          dispatch_role "$role_name" "$prompt_file" "$output_file" "$complexity"
+          return $?
+        fi
+        ;;
+      SELF_HEAL)
+        if [[ "$retry_count" -lt 3 ]]; then
+          local enriched="$TEAM_DIR/${role_name}-enriched-prompt.md"
+          local lessons_blob=""
+          [[ -f "$VAULT_PATH/lessons.md" ]] && lessons_blob=$(tail -200 "$VAULT_PATH/lessons.md")
+          {
+            cat "$prompt_file"
+            echo ""
+            echo "## SELF_HEAL ENRICHMENT — lessons context"
+            echo "$lessons_blob"
+            echo ""
+            echo "## SELF_HEAL ENRICHMENT — last error excerpt"
+            echo "$output" | head -40
+          } > "$enriched"
+          dispatch_role "$role_name" "$enriched" "$output_file" "$complexity"
+          return $?
+        fi
+        ;;
+      ESCALATE_REPEATED)
+        # No-op: post-loop block handles escalation unconditionally (NEW-B-1 fix).
+        # Verdict is captured in policy-decisions.jsonl by policy_dispatch_failure itself.
+        :
+        ;;
+    esac
+
+    # === POST-LOOP REJECTION BLOCK (ALWAYS fires on exhaustion) ===
+    # Per NEW-B-1: regardless of which case branch caused exhaustion (guard tripped on
+    # RETRY_NEXT_TIER/SELF_HEAL, OR ESCALATE_REPEATED returned), this block runs.
+    # Guarantees ark_escalate is called whenever the rejection sentinel is written.
+    if type ark_escalate >/dev/null 2>&1; then
+      ark_escalate repeated-failure \
+        "Role $role_name dispatch exhausted (phase $PHASE_NUM)" \
+        "Retries: $retry_count. Last verdict: $verdict. Last output excerpt: $(echo "$output" | head -10)" >/dev/null
+    fi
+    cat > "$output_file" <<S
+verdict: REJECTED
+summary: dispatch-exhausted ($retry_count retries)
+S
+    return 1
   fi
 
   echo "$output" > "$output_file"
+  return 0
 }
 
 # === Helper: build common context block ===
@@ -159,7 +266,7 @@ Constraints:
 - Keep changes minimal — bias toward small, atomic additions
 EOF
 
-  dispatch_role "architect" "$prompt_file" "$TEAM_DIR/architect-design.md"
+  dispatch_role "architect" "$prompt_file" "$TEAM_DIR/architect-design.md" deep
   role_log "ARCHITECT" "✓ Design saved to team/architect-design.md" "$GREEN"
 }
 
@@ -218,7 +325,7 @@ summary: <one paragraph>
 Reject if any BLOCKER. Request changes for HIGH issues. Approve if only MEDIUM/LOW.
 EOF
 
-  dispatch_role "qc" "$prompt_file" "$TEAM_DIR/qc-review.md"
+  dispatch_role "qc" "$prompt_file" "$TEAM_DIR/qc-review.md" strong
 
   # Parse verdict
   if grep -q "verdict:[[:space:]]*APPROVE" "$TEAM_DIR/qc-review.md" 2>/dev/null; then
@@ -331,7 +438,7 @@ summary: <one paragraph>
 Reject for ANY critical/high finding. Approve only if all checks pass.
 EOF
 
-  dispatch_role "security" "$prompt_file" "$TEAM_DIR/security-audit.md"
+  dispatch_role "security" "$prompt_file" "$TEAM_DIR/security-audit.md" strong
 
   if grep -q "verdict:[[:space:]]*APPROVE" "$TEAM_DIR/security-audit.md" 2>/dev/null; then
     role_log "SECURITY" "✓ APPROVED" "$GREEN"
@@ -489,6 +596,12 @@ main() {
   echo -e "  Project: $(basename "$PROJECT_DIR")"
   echo -e "  Team: Architect → Engineers → QC + QA + Security → PM"
   echo ""
+
+  # Reset per-role retry counters at the start of each invocation so that
+  # retry budget is per-team-run, not carried across phases (NEW-B-4 fix).
+  for _r in architect qc security; do
+    rm -f "$TEAM_DIR/${_r}-retry-count.txt"
+  done
 
   role_architect
   role_engineers
