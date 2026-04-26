@@ -177,7 +177,12 @@ Usage: ark [command]
 
 Commands:
   AUTONOMOUS DELIVERY:
-    create      Scaffold a new project (--type --stack --deploy)
+    create      Scaffold a new project. Two invocation modes:
+                  Description mode (Phase 4 — recommended):
+                    ark create "<one-line description>" --customer <name>
+                  Flag mode (backward compatible):
+                    ark create <name> --type <t> --stack <s> --deploy <d> --customer <c>
+                  See 'ark create --help' for full options.
     deliver     Run autonomous delivery (team-validated per phase)
     promote     Deploy to staging or production (production requires --confirm)
 
@@ -211,7 +216,10 @@ Commands:
   help          Show this help
 
 Environment:
-  ARK_HOME  Path to vault (default: ~/vaults/ark)
+  ARK_HOME            Path to vault (default: ~/vaults/ark)
+  ARK_CREATE_GITHUB   When 'true', 'ark create' provisions a real GitHub repo
+                      via 'gh repo create'. Default off — production
+                      side-effect gate (see Phase 4 04-04 incident report).
 
 Examples:
   cd ~/code/my-project && ark          # Sync and show status
@@ -224,6 +232,16 @@ cmd_align() {
   print_header
   shift_args=("${@:2}")
   bash "$VAULT_PATH/scripts/ark-align.sh" "${shift_args[@]:-$PROJECT_DIR}"
+}
+
+cmd_create() {
+  # Pass through all args (positional + flags) to ark-create.sh.
+  # ark-create.sh handles description-mode vs flag-mode disambiguation internally:
+  #   ark create "<one-line description>" --customer <name>           # description mode (Phase 4)
+  #   ark create <name> --type <t> --stack <s> --deploy <d> --customer <c>   # flag mode (legacy)
+  # Production-side-effect gate: GitHub repo creation only fires when
+  # ARK_CREATE_GITHUB=true (default off; see Phase 4 04-04 incident report).
+  exec bash "$VAULT_PATH/scripts/ark-create.sh" "$@"
 }
 
 # Default command: sync + status
@@ -241,7 +259,7 @@ case "$COMMAND" in
   verify)     shift; bash "$VAULT_PATH/scripts/ark-verify.sh" "$@" ;;
   observe)    shift; bash "$VAULT_PATH/scripts/ark-observer.sh" "$@" ;;
   context)    shift; bash "$VAULT_PATH/scripts/ark-context.sh" "$@" ;;
-  create)     shift; bash "$VAULT_PATH/scripts/ark-create.sh" "$@" ;;
+  create)     shift; cmd_create "$@" ;;
   deliver)    shift; bash "$VAULT_PATH/scripts/ark-deliver.sh" "$@" ;;
   promote)    shift; bash "$VAULT_PATH/scripts/ark-promote.sh" "$@" ;;
   budget)     shift; bash "$VAULT_PATH/scripts/ark-budget.sh" "$@" ;;
