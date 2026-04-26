@@ -1,0 +1,94 @@
+{
+  "patterns": [
+    {
+      "id": "quota-exhausted-codex",
+      "regex": "(QUOTA_EXHAUSTED|hit your usage limit).*(codex|Codex)",
+      "category": "infrastructure",
+      "severity": "high",
+      "lesson_after_n": 3,
+      "auto_fix": "tier-down",
+      "description": "Codex CLI hit quota — auto-degrade to next tier"
+    },
+    {
+      "id": "quota-exhausted-gemini",
+      "regex": "(TerminalQuotaError|hit your usage limit|capacity).*?(gemini|Gemini)",
+      "category": "infrastructure",
+      "severity": "high",
+      "lesson_after_n": 3,
+      "auto_fix": "tier-down",
+      "description": "Gemini CLI hit quota — auto-degrade to next tier"
+    },
+    {
+      "id": "dispatch-no-prompt",
+      "regex": "No prompt provided via stdin",
+      "category": "bug",
+      "severity": "critical",
+      "lesson_after_n": 1,
+      "auto_fix": "log-only",
+      "description": "Dispatch failure — prompt not reaching CLI (stdin issue)"
+    },
+    {
+      "id": "phase-no-tasks",
+      "regex": "No tasks found in PLAN\\.md|no actionable tasks",
+      "category": "workflow",
+      "severity": "medium",
+      "lesson_after_n": 2,
+      "auto_fix": "log-only",
+      "description": "Phase has no tasks — should auto-skip rather than fail"
+    },
+    {
+      "id": "broken-symlink",
+      "regex": "(BROKEN symlink|cannot find module)",
+      "category": "infrastructure",
+      "severity": "high",
+      "lesson_after_n": 1,
+      "auto_fix": "log-only",
+      "description": "Broken symlink or missing module — points to file ops issue"
+    },
+    {
+      "id": "permission-denied",
+      "regex": "Permission denied|EACCES",
+      "category": "infrastructure",
+      "severity": "high",
+      "lesson_after_n": 2,
+      "auto_fix": "log-only",
+      "description": "Permission issues — likely chmod or sandbox-related"
+    },
+    {
+      "id": "git-push-fail",
+      "regex": "(push (declined|rejected)|non-fast-forward|GH013)",
+      "category": "infrastructure",
+      "severity": "medium",
+      "lesson_after_n": 2,
+      "auto_fix": "log-only",
+      "description": "Git push failing — branch protection or stale local"
+    },
+    {
+      "id": "ts-error",
+      "regex": "TS[0-9]{4}: ",
+      "category": "code-quality",
+      "severity": "medium",
+      "lesson_after_n": 5,
+      "auto_fix": "log-only",
+      "description": "Recurring TypeScript errors — may indicate template defect"
+    },
+    {
+      "id": "false-positive-block",
+      "regex": "(BLOCKED|REJECTED).*(error blob|never actually ran|dispatch error)",
+      "category": "logic-bug",
+      "severity": "critical",
+      "lesson_after_n": 1,
+      "auto_fix": "log-only",
+      "description": "PM rejected work that wasn't reviewed — verdict logic gap"
+    },
+    {
+      "id": "vault-stale",
+      "regex": "snapshot is stale|sync needed|>7 days old",
+      "category": "workflow",
+      "severity": "low",
+      "lesson_after_n": 5,
+      "auto_fix": "auto-sync",
+      "description": "Project snapshot stale — auto-sync trigger candidate"
+    }
+  ]
+}

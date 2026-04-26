@@ -199,6 +199,7 @@ Commands:
     doctor      Comprehensive health check
     backup      Create timestamped vault backup
     validate    Detect drift in cached templates
+    observe     Continuous monitoring + pattern detection (long-running daemon)
 
   OBSERVABILITY:
     insights    Show cross-project insights from Phase 6
@@ -236,6 +237,7 @@ case "$COMMAND" in
   align)      cmd_align "$@" ;;
   doctor)     bash "$VAULT_PATH/scripts/ark-doctor.sh" ;;
   verify)     shift; bash "$VAULT_PATH/scripts/ark-verify.sh" "$@" ;;
+  observe)    shift; bash "$VAULT_PATH/scripts/ark-observer.sh" "$@" ;;
   context)    shift; bash "$VAULT_PATH/scripts/ark-context.sh" "$@" ;;
   create)     shift; bash "$VAULT_PATH/scripts/ark-create.sh" "$@" ;;
   deliver)    shift; bash "$VAULT_PATH/scripts/ark-deliver.sh" "$@" ;;
