@@ -121,6 +121,13 @@ gather_state() {
   local in_claude_code="false"
   detect_claude_code && in_claude_code="true"
 
+  # ARK_AUTONOMOUS=true: caller is unattended (background shell, cron, ark-deliver
+  # launched outside an interactive Claude Code orchestrator). Even if CLAUDECODE=1
+  # is inherited, the session can't fulfill handoffs — force external routing.
+  if [[ "${ARK_AUTONOMOUS:-false}" == "true" ]]; then
+    in_claude_code="false"
+  fi
+
   local codex_status="$(get_cached_or_probe codex probe_codex_quota)"
   local gemini_status="$(get_cached_or_probe gemini probe_gemini_quota)"
 
