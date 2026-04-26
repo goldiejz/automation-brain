@@ -1,17 +1,29 @@
 #!/usr/bin/env bash
-# brain budget — token usage tracking and budget enforcement
+# brain budget — tiered token tracking with auto-swap notifications
+#
+# Tiers (auto-applied based on usage %):
+#   GREEN   (0-50%)   → all models available (Opus, Sonnet, Haiku, Codex, Gemini)
+#   YELLOW  (50-70%)  → demote Opus to Sonnet
+#   ORANGE  (70-85%)  → use only free tier (Codex, Gemini)
+#   RED     (85-95%)  → fallback only (regex, cached templates)
+#   BLACK   (95-100%) → hard stop
 #
 # Usage:
-#   brain budget                       # show current spend
-#   brain budget --set-cap 50000       # set per-phase cap (tokens)
-#   brain budget --set-monthly 1000000 # set monthly cap
-#   brain budget --record <tokens> <model>  # record an API call (called by execute-phase)
-#   brain budget --check               # exit 1 if over budget
+#   brain budget                          # show state + tier
+#   brain budget --set-cap 50000          # phase cap
+#   brain budget --set-monthly 1000000    # monthly cap
+#   brain budget --record <tokens> <model># log API call
+#   brain budget --check                  # exit 1 if BLACK tier
+#   brain budget --tier                   # output current tier (for agents to read)
+#   brain budget --route <task>           # output recommended model for current tier
+#   brain budget --watch                  # monitor and notify on tier changes
 
 set -uo pipefail
 
 PROJECT_DIR="$(pwd)"
 BUDGET_FILE="$PROJECT_DIR/.planning/budget.json"
+TIER_FILE="$PROJECT_DIR/.planning/budget-tier.txt"
+EVENTS_LOG="${AUTOMATION_BRAIN_PATH:-$HOME/vaults/automation-brain}/observability/budget-events.jsonl"
 ACTION=""
 
 while [[ $# -gt 0 ]]; do
@@ -20,12 +32,15 @@ while [[ $# -gt 0 ]]; do
     --set-monthly) ACTION="set-monthly"; MONTHLY="$2"; shift 2 ;;
     --record) ACTION="record"; TOKENS="$2"; MODEL="$3"; shift 3 ;;
     --check) ACTION="check"; shift ;;
+    --tier) ACTION="tier"; shift ;;
+    --route) ACTION="route"; TASK="${2:-default}"; shift 2 ;;
+    --watch) ACTION="watch"; shift ;;
     --reset) ACTION="reset"; shift ;;
     *) shift ;;
   esac
 done
 
-# Initialize if missing
+# Initialize budget file
 if [[ ! -f "$BUDGET_FILE" ]]; then
   mkdir -p "$(dirname "$BUDGET_FILE")"
   cat > "$BUDGET_FILE" <<EOF
@@ -35,48 +50,207 @@ if [[ ! -f "$BUDGET_FILE" ]]; then
   "monthly_period": "$(date +%Y-%m)",
   "monthly_used": 0,
   "phase_used": 0,
-  "history": []
+  "current_tier": "GREEN",
+  "last_notification_tier": "GREEN",
+  "history": [],
+  "tier_history": []
 }
 EOF
 fi
+
+mkdir -p "$(dirname "$EVENTS_LOG")" 2>/dev/null
+
+# === Compute current tier from usage ===
+compute_tier() {
+  python3 -c "
+import json
+with open('$BUDGET_FILE') as f:
+    b = json.load(f)
+phase_pct = (b['phase_used'] / b['phase_cap_tokens']) * 100 if b['phase_cap_tokens'] else 0
+monthly_pct = (b['monthly_used'] / b['monthly_cap_tokens']) * 100 if b['monthly_cap_tokens'] else 0
+worst = max(phase_pct, monthly_pct)
+
+if worst >= 95: print('BLACK')
+elif worst >= 85: print('RED')
+elif worst >= 70: print('ORANGE')
+elif worst >= 50: print('YELLOW')
+else: print('GREEN')
+"
+}
+
+# === Notify on tier change ===
+notify_tier_change() {
+  local old_tier="$1"
+  local new_tier="$2"
+
+  # Write tier file (other agents poll this)
+  echo "$new_tier" > "$TIER_FILE"
+
+  # Append to events log (audit + cross-project view)
+  echo "{\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"project\":\"$(basename "$PROJECT_DIR")\",\"old_tier\":\"$old_tier\",\"new_tier\":\"$new_tier\",\"event\":\"tier_change\"}" >> "$EVENTS_LOG"
+
+  # Update budget file
+  python3 -c "
+import json, datetime
+with open('$BUDGET_FILE') as f:
+    b = json.load(f)
+b['current_tier'] = '$new_tier'
+b['last_notification_tier'] = '$new_tier'
+b['tier_history'].append({
+    'timestamp': datetime.datetime.utcnow().isoformat() + 'Z',
+    'from': '$old_tier',
+    'to': '$new_tier'
+})
+b['tier_history'] = b['tier_history'][-50:]
+with open('$BUDGET_FILE', 'w') as f:
+    json.dump(b, f, indent=2)
+"
+
+  # Visual notification
+  case "$new_tier" in
+    YELLOW)
+      echo "🟡 BUDGET TIER: YELLOW (50%+) — Opus demoted to Sonnet"
+      ;;
+    ORANGE)
+      echo "🟠 BUDGET TIER: ORANGE (70%+) — Free tier only (Codex, Gemini)"
+      ;;
+    RED)
+      echo "🔴 BUDGET TIER: RED (85%+) — Fallback only (regex, cached)"
+      ;;
+    BLACK)
+      echo "⚫ BUDGET TIER: BLACK (95%+) — Hard stop. New phases blocked."
+      ;;
+    GREEN)
+      echo "🟢 BUDGET TIER: GREEN (<50%) — All models available"
+      ;;
+  esac
+
+  # System notification on macOS (Linux: notify-send)
+  if command -v osascript >/dev/null 2>&1; then
+    osascript -e "display notification \"Tier: $old_tier → $new_tier\" with title \"Brain Budget\" sound name \"Glass\"" 2>/dev/null || true
+  elif command -v notify-send >/dev/null 2>&1; then
+    notify-send "Brain Budget" "Tier: $old_tier → $new_tier" 2>/dev/null || true
+  fi
+
+  # Also write to per-project notification file so SessionStart hook surfaces it
+  cat > "$PROJECT_DIR/.planning/budget-notification.md" <<EOF
+# Budget Tier Change
+
+**$(date -u +%Y-%m-%dT%H:%M:%SZ)**
+
+Project: $(basename "$PROJECT_DIR")
+Tier: **$old_tier → $new_tier**
+
+## What This Means
+
+$(case "$new_tier" in
+  GREEN) echo "Normal operation. All models available." ;;
+  YELLOW) echo "50% budget used. Routing demotes Opus → Sonnet to extend runway." ;;
+  ORANGE) echo "70% budget used. Free tier only (Codex, Gemini). Paid models suspended." ;;
+  RED) echo "85% budget used. Critical — fallback to regex extraction and cached templates." ;;
+  BLACK) echo "Budget exhausted. New AI dispatches BLOCKED. Run \`brain budget --reset\` after phase completion or \`brain budget --set-cap <bigger>\`." ;;
+esac)
+
+## Recommended Action
+
+$(case "$new_tier" in
+  GREEN|YELLOW) echo "Continue normal work." ;;
+  ORANGE) echo "Consider raising cap if phase needs paid tier: \`brain budget --set-cap <bigger>\`" ;;
+  RED) echo "Phase will run with degraded quality. Review carefully before signing off." ;;
+  BLACK) echo "STOP. Reset phase budget or wait for monthly rollover. Do not continue blind." ;;
+esac)
+EOF
+}
+
+# === Detect and apply tier changes ===
+check_and_notify() {
+  local current_tier=$(compute_tier)
+  local last_tier=$(python3 -c "
+import json
+with open('$BUDGET_FILE') as f:
+    b = json.load(f)
+print(b.get('current_tier', 'GREEN'))
+")
+
+  if [[ "$current_tier" != "$last_tier" ]]; then
+    notify_tier_change "$last_tier" "$current_tier"
+  fi
+}
+
+# === Get recommended model for current tier ===
+recommend_model() {
+  local task_type="${1:-default}"
+  local tier=$(compute_tier)
+
+  case "$tier" in
+    GREEN)
+      case "$task_type" in
+        architect|complex|novel) echo "claude-opus-4-7" ;;
+        code|engineering) echo "codex" ;;
+        review|qc|security) echo "claude-sonnet-4-6" ;;
+        synthesis|breadth) echo "gemini-2-5-pro" ;;
+        *) echo "claude-haiku-4-5" ;;
+      esac
+      ;;
+    YELLOW)
+      # Demote Opus to Sonnet
+      case "$task_type" in
+        architect|complex|novel) echo "claude-sonnet-4-6" ;;
+        code|engineering) echo "codex" ;;
+        review|qc|security) echo "claude-sonnet-4-6" ;;
+        synthesis|breadth) echo "gemini-2-5-pro" ;;
+        *) echo "claude-haiku-4-5" ;;
+      esac
+      ;;
+    ORANGE)
+      # Free tier only
+      case "$task_type" in
+        code|engineering|architect|review|qc) echo "codex" ;;
+        synthesis|breadth) echo "gemini-2-5-pro" ;;
+        *) echo "codex" ;;
+      esac
+      ;;
+    RED)
+      # Local/cached only
+      echo "regex-fallback"
+      ;;
+    BLACK)
+      echo "BLOCKED"
+      ;;
+  esac
+}
 
 case "$ACTION" in
   set-cap)
     python3 -c "
 import json
-with open('$BUDGET_FILE') as f:
-    b = json.load(f)
+with open('$BUDGET_FILE') as f: b = json.load(f)
 b['phase_cap_tokens'] = $CAP
-with open('$BUDGET_FILE', 'w') as f:
-    json.dump(b, f, indent=2)
-print('✅ Per-phase cap set to $CAP tokens')
+with open('$BUDGET_FILE', 'w') as f: json.dump(b, f, indent=2)
+print('✅ Phase cap: $CAP tokens')
 "
+    check_and_notify
     ;;
 
   set-monthly)
     python3 -c "
 import json
-with open('$BUDGET_FILE') as f:
-    b = json.load(f)
+with open('$BUDGET_FILE') as f: b = json.load(f)
 b['monthly_cap_tokens'] = $MONTHLY
-with open('$BUDGET_FILE', 'w') as f:
-    json.dump(b, f, indent=2)
-print('✅ Monthly cap set to $MONTHLY tokens')
+with open('$BUDGET_FILE', 'w') as f: json.dump(b, f, indent=2)
+print('✅ Monthly cap: $MONTHLY tokens')
 "
+    check_and_notify
     ;;
 
   record)
     python3 -c "
 import json, datetime
-with open('$BUDGET_FILE') as f:
-    b = json.load(f)
-
-# Reset monthly if new period
+with open('$BUDGET_FILE') as f: b = json.load(f)
 current_period = datetime.datetime.utcnow().strftime('%Y-%m')
 if b.get('monthly_period') != current_period:
     b['monthly_period'] = current_period
     b['monthly_used'] = 0
-
 b['phase_used'] = b.get('phase_used', 0) + $TOKENS
 b['monthly_used'] = b.get('monthly_used', 0) + $TOKENS
 b['history'].append({
@@ -84,72 +258,94 @@ b['history'].append({
     'tokens': $TOKENS,
     'model': '$MODEL'
 })
-
-# Keep only last 200 history entries
 b['history'] = b['history'][-200:]
-
-with open('$BUDGET_FILE', 'w') as f:
-    json.dump(b, f, indent=2)
+with open('$BUDGET_FILE', 'w') as f: json.dump(b, f, indent=2)
 "
+    # Check tier change after recording
+    check_and_notify
     ;;
 
   check)
-    python3 -c "
-import json, sys
-with open('$BUDGET_FILE') as f:
-    b = json.load(f)
+    tier=$(compute_tier)
+    case "$tier" in
+      BLACK)
+        echo "🛑 BUDGET EXHAUSTED — exit 1"
+        exit 1
+        ;;
+      RED|ORANGE|YELLOW)
+        echo "⚠️  Tier: $tier — agents should adjust"
+        exit 0
+        ;;
+      GREEN)
+        echo "✅ Tier: GREEN"
+        exit 0
+        ;;
+    esac
+    ;;
 
-phase_pct = (b['phase_used'] / b['phase_cap_tokens']) * 100 if b['phase_cap_tokens'] else 0
-monthly_pct = (b['monthly_used'] / b['monthly_cap_tokens']) * 100 if b['monthly_cap_tokens'] else 0
+  tier)
+    compute_tier
+    ;;
 
-if phase_pct >= 100:
-    print(f'🛑 PHASE BUDGET EXCEEDED: {b[\"phase_used\"]:,} / {b[\"phase_cap_tokens\"]:,} tokens ({phase_pct:.1f}%)')
-    sys.exit(1)
-if monthly_pct >= 100:
-    print(f'🛑 MONTHLY BUDGET EXCEEDED: {b[\"monthly_used\"]:,} / {b[\"monthly_cap_tokens\"]:,} tokens ({monthly_pct:.1f}%)')
-    sys.exit(1)
+  route)
+    recommend_model "$TASK"
+    ;;
 
-if phase_pct >= 80:
-    print(f'⚠️  Phase budget {phase_pct:.0f}% used: {b[\"phase_used\"]:,} / {b[\"phase_cap_tokens\"]:,}')
-if monthly_pct >= 80:
-    print(f'⚠️  Monthly budget {monthly_pct:.0f}% used: {b[\"monthly_used\"]:,} / {b[\"monthly_cap_tokens\"]:,}')
-
-print('✅ Within budget')
-"
+  watch)
+    echo "Watching budget tier (Ctrl+C to stop)..."
+    last=$(compute_tier)
+    while true; do
+      current=$(compute_tier)
+      if [[ "$current" != "$last" ]]; then
+        echo "[$(date)] Tier changed: $last → $current"
+        notify_tier_change "$last" "$current"
+        last="$current"
+      fi
+      sleep 30
+    done
     ;;
 
   reset)
     python3 -c "
 import json
-with open('$BUDGET_FILE') as f:
-    b = json.load(f)
+with open('$BUDGET_FILE') as f: b = json.load(f)
 b['phase_used'] = 0
-with open('$BUDGET_FILE', 'w') as f:
-    json.dump(b, f, indent=2)
+with open('$BUDGET_FILE', 'w') as f: json.dump(b, f, indent=2)
 print('✅ Phase budget reset')
 "
+    check_and_notify
     ;;
 
   *)
-    # Show current state
+    # Show state with tier
     python3 -c "
 import json
 with open('$BUDGET_FILE') as f:
     b = json.load(f)
-
 phase_pct = (b['phase_used'] / b['phase_cap_tokens']) * 100 if b['phase_cap_tokens'] else 0
 monthly_pct = (b['monthly_used'] / b['monthly_cap_tokens']) * 100 if b['monthly_cap_tokens'] else 0
 
-print('💰 Brain Budget')
+emoji = {'GREEN': '🟢', 'YELLOW': '🟡', 'ORANGE': '🟠', 'RED': '🔴', 'BLACK': '⚫'}.get(b.get('current_tier', 'GREEN'), '?')
+
+print(f'{emoji} Brain Budget — Tier: {b.get(\"current_tier\", \"GREEN\")}')
 print('')
 print(f'  Phase:    {b[\"phase_used\"]:>10,} / {b[\"phase_cap_tokens\"]:>10,} tokens ({phase_pct:.1f}%)')
 print(f'  Monthly:  {b[\"monthly_used\"]:>10,} / {b[\"monthly_cap_tokens\"]:>10,} tokens ({monthly_pct:.1f}%)')
 print(f'  Period:   {b[\"monthly_period\"]}')
 print('')
-if b.get('history'):
-    print('Recent calls:')
-    for h in b['history'][-5:]:
-        print(f'  {h[\"timestamp\"]:<25} {h[\"tokens\"]:>6} tokens  {h[\"model\"]}')
+print('Tier model routing:')
+print('  GREEN   (<50%)   — all models (Opus, Sonnet, Haiku, Codex, Gemini)')
+print('  YELLOW  (50-70%) — Opus → Sonnet (demote expensive)')
+print('  ORANGE  (70-85%) — free tier only (Codex, Gemini)')
+print('  RED     (85-95%) — fallback only (regex, cached)')
+print('  BLACK   (95%+)   — hard stop, new dispatches blocked')
+print('')
+if b.get('tier_history'):
+    print('Recent tier changes:')
+    for h in b['tier_history'][-5:]:
+        print(f'  {h[\"timestamp\"]}: {h[\"from\"]} → {h[\"to\"]}')
 "
+    # Recheck tier on every show
+    check_and_notify >/dev/null 2>&1
     ;;
 esac

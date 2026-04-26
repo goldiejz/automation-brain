@@ -1,0 +1,4 @@
+{"timestamp":"2026-04-26T05:25:16Z","project":"budget-test","old_tier":"GREEN","new_tier":"YELLOW","event":"tier_change"}
+{"timestamp":"2026-04-26T05:25:16Z","project":"budget-test","old_tier":"YELLOW","new_tier":"ORANGE","event":"tier_change"}
+{"timestamp":"2026-04-26T05:25:16Z","project":"budget-test","old_tier":"ORANGE","new_tier":"RED","event":"tier_change"}
+{"timestamp":"2026-04-26T05:25:16Z","project":"budget-test","old_tier":"RED","new_tier":"BLACK","event":"tier_change"}
