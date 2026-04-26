@@ -260,6 +260,12 @@ learner_run() {
 
   mv "$tmp_pending" "$PENDING_FILE"
 
+  # Plan 03-04: write the human-readable digest alongside the pending sidecar.
+  # Non-fatal — if the digest writer fails, the pending sidecar (consumed by
+  # 03-03) is still authoritative; we just lose the human view for this run.
+  learner_write_digest "$since_iso" || \
+    echo "⚠️  digest writer failed (non-fatal)" >&2
+
   echo "scored: $total (promote: $p, deprecate: $d) → $PENDING_FILE"
 }
 
@@ -292,6 +298,26 @@ learner_emit_deprecations() {
   local since="${1:-1970-01-01T00:00:00Z}"
   learner_collect_pending "$since" | awk -F'\t' '$1 == "DEPRECATE"'
 }
+
+# === Plan 03-04: human-readable digest writer ===
+# Sources scripts/lib/policy-digest.sh and re-exports `learner_write_digest`.
+# Kept as a thin shim so 03-04's standalone module remains independently
+# testable; merging the body into this file is a future-cleanup option.
+
+if [[ -z "${_LEARNER_DIGEST_LOADED:-}" ]]; then
+  if [[ -f "$_PL_LIB_DIR/policy-digest.sh" ]]; then
+    # shellcheck disable=SC1091
+    source "$_PL_LIB_DIR/policy-digest.sh"
+    _LEARNER_DIGEST_LOADED=1
+  else
+    # Fallback no-op so callers don't break if the lib is missing.
+    learner_write_digest() {
+      echo "⚠️  scripts/lib/policy-digest.sh not found; digest skipped" >&2
+      return 0
+    }
+    _LEARNER_DIGEST_LOADED=1
+  fi
+fi
 
 # === CLI / Self-test entry ===
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
@@ -509,8 +535,12 @@ SQL
       shift
       learner_run --since "$1"
       ;;
+    digest)
+      # Plan 03-04: write only the digest (no scoring/sidecar side-effects).
+      learner_write_digest "${2:-1970-01-01T00:00:00Z}"
+      ;;
     *)
-      echo "Usage: $0 [test|run|--full|--since DATE]" >&2
+      echo "Usage: $0 [test|run|--full|--since DATE|digest [SINCE]]" >&2
       exit 1
       ;;
   esac
