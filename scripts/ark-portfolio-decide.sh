@@ -204,11 +204,13 @@ portfolio_score_project() {
   stuckness=$(_portfolio_stuckness "$proj")
   falling_health=$(_portfolio_falling_health "$proj")
 
-  # budget_headroom: stub returns 100 (Plan 05-02 overrides via SECTION:budget-reader).
+  # budget_headroom: filled by SECTION:budget-reader (Plan 05-02).
+  # _portfolio_budget_headroom is always defined when this file is sourced;
+  # the type-check survives only as defence against a half-source race.
   if type _portfolio_budget_headroom >/dev/null 2>&1; then
     budget_headroom=$(_portfolio_budget_headroom "$customer")
   else
-    budget_headroom=100
+    budget_headroom=$(( 100 ))  # safety fallback (function missing)
   fi
 
   # ceo_priority: stub returns 0 (Plan 05-03 overrides via SECTION:ceo-directive).
@@ -306,6 +308,60 @@ portfolio_decide() {
 # overrides the stub in portfolio_score_project to read
 # ~/vaults/ark/customers/<customer>/policy.yml::budget.monthly_used and
 # budget.monthly_cap. Returns 0 (signals DEFERRED_BUDGET) when >= 80%.
+#
+# Signature note: 05-01 wired the caller as `_portfolio_budget_headroom "$customer"`
+# (passes a customer slug, not a project path). We honor that contract here.
+# Resolution path: ARK_CUSTOMER=<slug> + PROJECT_DIR="" → policy_config_get
+# cascade hits the customer layer (Phase 4) directly.
+
+# _portfolio_budget_headroom <customer>
+# Returns 0..100 (percent headroom remaining): 100 = fresh, 0 = at/over 80% cap.
+# Reads $ARK_HOME/customers/<customer>/policy.yml::budget.monthly_used and
+# budget.monthly_cap via the cascading config layer (Phase 4 customer wiring).
+# Default cap: 100000 tokens. Missing customer file → headroom 100 (fresh).
+# scratch (no customer tag) → headroom 100 (no per-customer cap).
+_portfolio_budget_headroom() {
+  local customer="$1"
+  # No customer / scratch → no per-customer cap; full headroom.
+  if [[ -z "$customer" ]] || [[ "$customer" == "scratch" ]]; then
+    echo 100
+    return 0
+  fi
+  local used cap
+  # PROJECT_DIR cleared so the project-level layer doesn't shadow the customer
+  # layer for these specific keys. ARK_CUSTOMER pinned per-call.
+  used=$(ARK_CUSTOMER="$customer" PROJECT_DIR="" \
+         policy_config_get budget.monthly_used 0)
+  cap=$(ARK_CUSTOMER="$customer" PROJECT_DIR="" \
+         policy_config_get budget.monthly_cap 100000)
+  # Defensive: non-numeric → assume fresh.
+  case "$used" in ''|*[!0-9]*) used=0 ;; esac
+  case "$cap"  in ''|*[!0-9]*) cap=100000 ;; esac
+  if [[ "$cap" -le 0 ]]; then echo 100; return 0; fi
+  local pct_used
+  pct_used=$(( used * 100 / cap ))
+  # ≥80% used → DEFERRED_BUDGET signal (headroom 0).
+  if [[ "$pct_used" -ge 80 ]]; then echo 0; return 0; fi
+  echo $(( 100 - pct_used ))
+}
+
+# _portfolio_global_fair_share <num_active_customers>
+# Returns the remaining global token budget per customer (informational; used
+# by Plan 05-04's portfolio_decide rationale logging — not by the score).
+# Reads $ARK_HOME/policy.yml::budget.monthly_cap_total and monthly_used_total
+# via vault-level cascade (no customer scope).
+_portfolio_global_fair_share() {
+  local n="${1:-1}"
+  if [[ -z "$n" ]] || [[ "$n" -le 0 ]] 2>/dev/null; then n=1; fi
+  local g_cap g_used
+  g_cap=$(PROJECT_DIR="" policy_config_get budget.monthly_cap_total 1000000)
+  g_used=$(PROJECT_DIR="" policy_config_get budget.monthly_used_total 0)
+  case "$g_used" in ''|*[!0-9]*) g_used=0 ;; esac
+  case "$g_cap"  in ''|*[!0-9]*) g_cap=1000000 ;; esac
+  local rem=$(( g_cap - g_used ))
+  [[ "$rem" -lt 0 ]] && rem=0
+  echo $(( rem / n ))
+}
 # === END SECTION: budget-reader ===
 
 # === SECTION: ceo-directive (Plan 05-03) ===
@@ -515,6 +571,43 @@ EOFCC
       fail=$((fail + 1)); echo "  ❌ SECTION: $sec missing or malformed"
     fi
   done
+
+  echo ""
+  echo "Plan 05-02 budget-reader assertions:"
+  # Set up mock customer policy.yml files inside the test vault.
+  # ARK_HOME is already exported = $TMP_VAULT, so the cascade resolves
+  # ARK_HOME/customers/<slug>/policy.yml as the customer layer.
+  mkdir -p "$TMP_VAULT/customers/acme"
+  cat > "$TMP_VAULT/customers/acme/policy.yml" <<'EOF_ACME'
+budget.monthly_used: 90000
+budget.monthly_cap: 100000
+EOF_ACME
+  mkdir -p "$TMP_VAULT/customers/beta"
+  cat > "$TMP_VAULT/customers/beta/policy.yml" <<'EOF_BETA'
+budget.monthly_used: 10000
+budget.monthly_cap: 100000
+EOF_BETA
+  # Defensive: clear potential outer-shell env shadows of the resolved keys.
+  unset ARK_BUDGET_MONTHLY_USED ARK_BUDGET_MONTHLY_CAP
+
+  # acme: 90% used → ≥80% threshold → headroom 0
+  assert_eq "0"   "$(_portfolio_budget_headroom acme)"    "acme over 80% returns headroom 0"
+  # beta: 10% used → headroom 90
+  assert_eq "90"  "$(_portfolio_budget_headroom beta)"    "beta at 10% returns headroom 90"
+  # scratch: no customer file → headroom 100
+  assert_eq "100" "$(_portfolio_budget_headroom scratch)" "scratch returns headroom 100"
+
+  # Score recomputation: proj-b (acme) over 80% must reflect budget_headroom=0.
+  # First restore proj-b's blocked/stale state was wiped by tie-break test;
+  # we just need proj-b's customer to still be acme (policy.yml untouched).
+  row_b_post=$(portfolio_score_project "$TMP_PORT/proj-b")
+  hr_b_post=$(echo "$row_b_post" | awk -F'\t' '{print $6}')
+  assert_eq "0" "$hr_b_post" "portfolio_score_project proj-b reflects budget_headroom=0 after over-cap"
+
+  # Bonus: _portfolio_global_fair_share — divides remaining global cap by N.
+  # No vault policy.yml present → defaults: cap_total=1000000, used_total=0.
+  fs=$(_portfolio_global_fair_share 4)
+  assert_eq "250000" "$fs" "_portfolio_global_fair_share 4 → 250000 (default 1M / 4)"
 
   echo ""
   echo "Real-DB isolation (no writes to ~/vaults/ark/observability/policy.db):"
