@@ -89,10 +89,72 @@ else: print('GREEN')
 "
 }
 
+# === Policy delegation on BLACK tier (AOS Phase 2) ===
+# Returns 0 if AUTO_RESET applied (caller should recompute tier);
+# returns 1 if escalated, no policy lib, or PROCEED no-op.
+_budget_apply_policy_on_black() {
+  type policy_budget_decision >/dev/null 2>&1 || return 1
+
+  local phase_used phase_cap monthly_used monthly_cap monthly_period
+  eval "$(BUDGET_FILE="$BUDGET_FILE" python3 - <<'PY'
+import json, os
+b = json.load(open(os.environ['BUDGET_FILE']))
+print(f"phase_used={b['phase_used']}")
+print(f"phase_cap={b['phase_cap_tokens']}")
+print(f"monthly_used={b['monthly_used']}")
+print(f"monthly_cap={b['monthly_cap_tokens']}")
+print(f"monthly_period={b['monthly_period']}")
+PY
+)"
+
+  local decision
+  decision=$(policy_budget_decision "$phase_used" "$phase_cap" "$monthly_used" "$monthly_cap")
+
+  case "$decision" in
+    AUTO_RESET)
+      BUDGET_FILE="$BUDGET_FILE" python3 - <<'PY'
+import json, os
+p = os.environ['BUDGET_FILE']
+b = json.load(open(p))
+b['phase_used'] = 0
+json.dump(b, open(p, 'w'), indent=2)
+PY
+      echo "{\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"project\":\"$(basename "$PROJECT_DIR")\",\"event\":\"auto_reset_by_policy\",\"reason\":\"BLACK_with_monthly_headroom\"}" >> "$EVENTS_LOG"
+      return 0
+      ;;
+    ESCALATE_MONTHLY_CAP)
+      # Idempotency: skip if an open monthly-budget escalation already exists for this period
+      if [[ -f "$VAULT_PATH/ESCALATIONS.md" ]] \
+         && grep -qE "^## ESC-.*— monthly-budget — open" "$VAULT_PATH/ESCALATIONS.md" 2>/dev/null \
+         && grep -qF "monthly_period: $monthly_period" "$VAULT_PATH/ESCALATIONS.md" 2>/dev/null; then
+        return 1
+      fi
+      if type ark_escalate >/dev/null 2>&1; then
+        local body
+        body=$(printf "Monthly cap reached.\n\nmonthly_period: %s\nphase_used: %s / %s\nmonthly_used: %s / %s\n\nReview: ark budget --set-monthly <bigger> OR start new monthly period." \
+          "$monthly_period" "$phase_used" "$phase_cap" "$monthly_used" "$monthly_cap")
+        ark_escalate monthly-budget "Monthly cap reached" "$body" >/dev/null 2>&1 || true
+      fi
+      return 1
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 # === Notify on tier change ===
 notify_tier_change() {
   local old_tier="$1"
   local new_tier="$2"
+
+  # AOS: BLACK tier delegates to policy. AUTO_RESET path zeros phase_used and
+  # recomputes tier so the visual notification reflects post-reset state.
+  if [[ "$new_tier" == "BLACK" ]]; then
+    if _budget_apply_policy_on_black; then
+      new_tier=$(compute_tier)
+    fi
+  fi
 
   # Write tier file (other agents poll this)
   echo "$new_tier" > "$TIER_FILE"
@@ -285,6 +347,12 @@ with open('$BUDGET_FILE', 'w') as f: json.dump(b, f, indent=2)
     tier=$(compute_tier)
     case "$tier" in
       BLACK)
+        # AOS: ask policy first. AUTO_RESET → recompute, exit 0. Else exit 1.
+        if _budget_apply_policy_on_black; then
+          tier=$(compute_tier)
+          echo "✅ Tier (post auto-reset by policy): $tier"
+          exit 0
+        fi
         echo "🛑 BUDGET EXHAUSTED — exit 1"
         exit 1
         ;;
