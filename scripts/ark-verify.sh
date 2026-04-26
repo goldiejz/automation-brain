@@ -1020,6 +1020,278 @@ T11_ACME_LOOSE
   rm -rf "$T11_VAULT" "$T11_PORT"
 fi
 
+# ━━━ Tier 12: Cross-customer learning under stress (AOS Phase 6) ━━━
+# Phase 6 exit gate. Mechanizes the lesson promoter end-to-end against a
+# synthetic 3-customer fixture mirroring Tier 11's portfolio-decide structure.
+# Isolated tmp portfolio + tmp vault (with git init) + tmp policy.db. Real
+# vault (~/vaults/ark/lessons/universal-patterns.md, ~/vaults/ark/bootstrap/
+# anti-patterns.md, ~/vaults/ark/observability/policy.db) md5s captured
+# before/after to guarantee no leakage (NEW-W-1; Phase-4 GitHub-incident
+# discipline).
+#
+# Asserts: scan finds 3 customer files; RBAC cross-customer cluster routes
+# to universal-patterns; anti-pattern cross-customer cluster routes to
+# anti-patterns; singleton lesson NOT promoted; ≥2 lesson_promote PROMOTED
+# audit rows; ≥2 git commits in tmp vault; idempotency on re-run; lock dir
+# released; no `read -p` regression in delivery-path scripts; real-vault md5
+# invariants hold.
+#
+# REQ-AOS-38 (Tier 12 passes) + REQ-AOS-39 (Tier 1-11 retained — re-run
+# separately).
+if should_run_tier 12; then
+  echo ""
+  echo -e "${BLUE}━━━ Tier 12: Cross-customer learning ━━━${NC}"
+fi
+
+# 12.1 — lesson-similarity.sh + lesson-promoter.sh present + syntax + self-test
+run_existence_check 12 "lib/lesson-similarity.sh present" "$VAULT_PATH/scripts/lib/lesson-similarity.sh"
+run_check 12 "lib/lesson-similarity.sh syntax valid" \
+  "bash -n '$VAULT_PATH/scripts/lib/lesson-similarity.sh' && echo OK" \
+  "^OK$"
+run_check 12 "lib/lesson-similarity.sh self-test passes" \
+  "bash '$VAULT_PATH/scripts/lib/lesson-similarity.sh' test 2>&1 | tail -2" \
+  "ALL .* TESTS PASSED|14/14|✅"
+
+run_existence_check 12 "scripts/lesson-promoter.sh present" "$VAULT_PATH/scripts/lesson-promoter.sh"
+run_check 12 "scripts/lesson-promoter.sh syntax valid" \
+  "bash -n '$VAULT_PATH/scripts/lesson-promoter.sh' && echo OK" \
+  "^OK$"
+
+# 12.2 — wiring: ark dispatcher has promote-lessons subcommand; ark-deliver.sh has hook
+run_check 12 "ark dispatcher exposes promote-lessons subcommand" \
+  "grep -c 'promote-lessons' '$VAULT_PATH/scripts/ark'" \
+  "^[1-9]"
+run_check 12 "ark-deliver.sh has lesson-promoter post-phase trigger" \
+  "grep -c 'lesson-promoter.sh' '$VAULT_PATH/scripts/ark-deliver.sh'" \
+  "^[1-9]"
+
+# === Tier 12 synthetic 3-customer pipeline (NEW-W-1 isolation) ===
+if should_run_tier 12; then
+  T12_PORTFOLIO=$(mktemp -d -t ark-tier12-port.XXXXXX)
+  T12_VAULT=$(mktemp -d -t ark-tier12-vault.XXXXXX)
+  T12_DB="$T12_VAULT/observability/policy.db"
+  mkdir -p "$T12_VAULT/observability" "$T12_VAULT/lessons" "$T12_VAULT/bootstrap" "$T12_VAULT/scripts/lib"
+
+  # Real-vault md5 invariants (NEW-W-1)
+  T12_REAL_U="$HOME/vaults/ark/lessons/universal-patterns.md"
+  T12_REAL_A="$HOME/vaults/ark/bootstrap/anti-patterns.md"
+  T12_REAL_DB="$HOME/vaults/ark/observability/policy.db"
+  _t12_md5() { md5 -q "$1" 2>/dev/null || md5sum "$1" 2>/dev/null | awk '{print $1}'; }
+  if [[ -f "$T12_REAL_U" ]]; then
+    T12_REAL_U_BEFORE=$(_t12_md5 "$T12_REAL_U")
+  else
+    T12_REAL_U_BEFORE="ABSENT"
+  fi
+  if [[ -f "$T12_REAL_A" ]]; then
+    T12_REAL_A_BEFORE=$(_t12_md5 "$T12_REAL_A")
+  else
+    T12_REAL_A_BEFORE="ABSENT"
+  fi
+  if [[ -f "$T12_REAL_DB" ]]; then
+    T12_REAL_DB_BEFORE=$(_t12_md5 "$T12_REAL_DB")
+  else
+    T12_REAL_DB_BEFORE="ABSENT"
+  fi
+
+  # Init tmp vault as git repo (lesson-promoter needs vault git for per-cluster commits)
+  ( cd "$T12_VAULT" \
+    && git init --quiet \
+    && git config user.email "tier12@example.invalid" \
+    && git config user.name "Tier 12 Test" \
+    && git config commit.gpgsign false ) >/dev/null 2>&1
+
+  # Init isolated audit DB
+  ARK_HOME="$T12_VAULT" ARK_POLICY_DB="$T12_DB" \
+    bash -c "source '$VAULT_PATH/scripts/lib/policy-db.sh'; db_init" >/dev/null 2>&1 || true
+
+  # === Synthetic 3-customer fixture ===
+  # cust-a: 3 lessons. RBAC v1 + RBAC v2 (engineered to cluster with cust-b),
+  #         and one wrangler binding lesson (singleton).
+  mkdir -p "$T12_PORTFOLIO/cust-a/tasks" \
+           "$T12_PORTFOLIO/cust-b/tasks" \
+           "$T12_PORTFOLIO/cust-c/tasks"
+
+  cat > "$T12_PORTFOLIO/cust-a/tasks/lessons.md" <<'T12_LESSONS_A'
+# Lessons Learned
+
+## Lesson: Centralise RBAC role arrays in single source of truth module
+**Trigger:** Inline role arrays drifted between routes and middleware
+**Mistake:** Hardcoded role list in three different files
+**Rule:** Every RBAC role array must live in one centralised module. Routes and components import the centralised array. Lint forbids inline role arrays anywhere. Centralised role array is single source of truth.
+**Date:** 2026-04-01
+
+## Lesson: RBAC role arrays must be centralised in single source module
+**Trigger:** Role array drift caught in code review
+**Mistake:** Inline role arrays scattered across components and routes
+**Rule:** Centralise every RBAC role array in one single source of truth module. Routes and components must import the centralised role array. Lint forbids inline role arrays anywhere in source.
+**Date:** 2026-04-03
+
+## Lesson: Wrangler binding deploy requires explicit project name flag
+**Trigger:** Wrong D1 binding deployed to staging
+**Mistake:** Assumed default project name from wrangler.toml file
+**Rule:** Always pass --project-name explicitly when deploying wrangler pages with multiple environments configured.
+**Date:** 2026-04-02
+T12_LESSONS_A
+
+  # cust-b: 1 RBAC lesson (clusters with cust-a) + 1 anti-pattern (clusters with cust-c)
+  cat > "$T12_PORTFOLIO/cust-b/tasks/lessons.md" <<'T12_LESSONS_B'
+# Lessons Learned
+
+## Lesson: Centralise RBAC role arrays in single source of truth
+**Trigger:** Inline role arrays drifted between routes and components
+**Mistake:** Hardcoded role list in different files instead of centralised module
+**Rule:** Every RBAC role array must live in one centralised module. Routes and components import the centralised array. Lint forbids inline role arrays. Centralised role array is single source of truth.
+**Date:** 2026-04-05
+
+## Lesson: Anti-pattern do not hardcode secrets in source code repository
+**Trigger:** API key was committed to git history accidentally
+**Mistake:** Hardcoded the secret key inline instead of using environment variable
+**Rule:** Anti-pattern never hardcode secrets in source code. Always use environment variables or a secret manager. Do not commit secrets to source code repository ever.
+**Date:** 2026-04-07
+T12_LESSONS_B
+
+  # cust-c: 2 anti-pattern lessons (clusters with cust-b — gives combined
+  # occurrences=3 to clear PROMOTE_MIN_OCCURRENCES=3) + 1 singleton (NOT promoted).
+  cat > "$T12_PORTFOLIO/cust-c/tasks/lessons.md" <<'T12_LESSONS_C'
+# Lessons Learned
+
+## Lesson: Anti-pattern do not hardcode secrets in source code anywhere
+**Trigger:** Token leaked via committed config file in source code
+**Mistake:** Hardcoded secret inline instead of using environment variable lookup
+**Rule:** Anti-pattern never hardcode secrets in source code. Always use environment variables or a secret manager. Do not commit secrets to source code repository.
+**Date:** 2026-04-10
+
+## Lesson: Anti-pattern never hardcode secrets in source code repository
+**Trigger:** Secret leaked via committed source code change
+**Mistake:** Hardcoded secret inline in source instead of using environment variable
+**Rule:** Anti-pattern do not hardcode secrets in source code anywhere. Always use environment variables or a secret manager. Do not commit secrets to source code repository.
+**Date:** 2026-04-11
+
+## Lesson: Always run database migrations after merge to main branch
+**Trigger:** Schema drift in production after merge to main
+**Mistake:** Forgot to run database migrations after deploying merged code
+**Rule:** Always run wrangler d1 migrations apply remote after pushing schema changes to main. Verify production database schema matches repository schema.
+**Date:** 2026-04-12
+T12_LESSONS_C
+
+  # === Run the full pipeline (sourced subshell — CLI dispatcher handles only one flag) ===
+  T12_RUN_LOG=$(mktemp -t ark-tier12-run.XXXXXX)
+  ( ARK_PORTFOLIO_ROOT="$T12_PORTFOLIO" \
+    ARK_HOME="$T12_VAULT" \
+    VAULT_PATH="$T12_VAULT" \
+    UNIVERSAL_TARGET="$T12_VAULT/lessons/universal-patterns.md" \
+    ANTIPATTERN_TARGET="$T12_VAULT/bootstrap/anti-patterns.md" \
+    ARK_POLICY_DB="$T12_DB" \
+    bash -c "source '$VAULT_PATH/scripts/lesson-promoter.sh' && promoter_run --full --apply" \
+  ) > "$T12_RUN_LOG" 2>&1 || true
+
+  # === Assertions ===
+  run_check 12 "portfolio scan finds 3 customer lesson files" \
+    "n=\$(find '$T12_PORTFOLIO' -name lessons.md | wc -l | tr -d ' '); test \"\$n\" = '3' && echo OK" \
+    "^OK$"
+
+  run_check 12 "universal-patterns.md created in tmp vault" \
+    "test -f '$T12_VAULT/lessons/universal-patterns.md' && echo OK" \
+    "^OK$"
+
+  run_check 12 "anti-patterns.md created in tmp vault" \
+    "test -f '$T12_VAULT/bootstrap/anti-patterns.md' && echo OK" \
+    "^OK$"
+
+  run_check 12 "RBAC cluster promoted to universal-patterns.md (auto-promoted marker + RBAC vocabulary)" \
+    "grep -qF 'AOS Phase 6 — auto-promoted' '$T12_VAULT/lessons/universal-patterns.md' && grep -qiE 'rbac|role array' '$T12_VAULT/lessons/universal-patterns.md' && echo OK" \
+    "^OK$"
+
+  run_check 12 "anti-pattern cluster promoted to anti-patterns.md (auto-promoted marker + secret vocabulary)" \
+    "grep -qF 'AOS Phase 6 — auto-promoted' '$T12_VAULT/bootstrap/anti-patterns.md' && grep -qiE 'hardcode|secret' '$T12_VAULT/bootstrap/anti-patterns.md' && echo OK" \
+    "^OK$"
+
+  run_check 12 "audit DB has >=2 lesson_promote PROMOTED rows" \
+    "n=\$(sqlite3 '$T12_DB' \"SELECT count(*) FROM decisions WHERE class='lesson_promote' AND decision='PROMOTED';\" 2>/dev/null); test \"\${n:-0}\" -ge 2 && echo OK" \
+    "^OK$"
+
+  run_check 12 "tmp-vault git has >=2 'AOS Phase 6: promote cluster' commits" \
+    "n=\$(git -C '$T12_VAULT' log --all --oneline 2>/dev/null | grep -c 'AOS Phase 6: promote cluster'); test \"\${n:-0}\" -ge 2 && echo OK" \
+    "^OK$"
+
+  run_check 12 "singleton 'always run database migrations' (cust-c only) NOT in universal-patterns.md" \
+    "grep -qiE 'always run.*migrations' '$T12_VAULT/lessons/universal-patterns.md' && echo BAD || echo OK" \
+    "^OK$"
+
+  run_check 12 "lock dir absent after run" \
+    "test ! -d '$T12_VAULT/.lesson-promoter.lock' && echo OK" \
+    "^OK$"
+
+  # === Idempotency: re-run, expect no new commits, no new audit rows, md5 unchanged ===
+  T12_AUDIT_BEFORE=$(sqlite3 "$T12_DB" "SELECT count(*) FROM decisions WHERE class='lesson_promote';" 2>/dev/null || echo 0)
+  T12_COMMITS_BEFORE=$(git -C "$T12_VAULT" log --all --oneline 2>/dev/null | wc -l | tr -d ' ')
+  T12_U_BEFORE=$(_t12_md5 "$T12_VAULT/lessons/universal-patterns.md")
+  ( ARK_PORTFOLIO_ROOT="$T12_PORTFOLIO" \
+    ARK_HOME="$T12_VAULT" \
+    VAULT_PATH="$T12_VAULT" \
+    UNIVERSAL_TARGET="$T12_VAULT/lessons/universal-patterns.md" \
+    ANTIPATTERN_TARGET="$T12_VAULT/bootstrap/anti-patterns.md" \
+    ARK_POLICY_DB="$T12_DB" \
+    bash -c "source '$VAULT_PATH/scripts/lesson-promoter.sh' && promoter_run --full --apply" \
+  ) >/dev/null 2>&1 || true
+  T12_AUDIT_AFTER=$(sqlite3 "$T12_DB" "SELECT count(*) FROM decisions WHERE class='lesson_promote';" 2>/dev/null || echo 0)
+  T12_COMMITS_AFTER=$(git -C "$T12_VAULT" log --all --oneline 2>/dev/null | wc -l | tr -d ' ')
+  T12_U_AFTER=$(_t12_md5 "$T12_VAULT/lessons/universal-patterns.md")
+
+  run_check 12 "idempotent: audit row count unchanged on re-run" \
+    "test '$T12_AUDIT_BEFORE' = '$T12_AUDIT_AFTER' && echo OK" \
+    "^OK$"
+  run_check 12 "idempotent: git commit count unchanged on re-run" \
+    "test '$T12_COMMITS_BEFORE' = '$T12_COMMITS_AFTER' && echo OK" \
+    "^OK$"
+  run_check 12 "idempotent: universal-patterns.md md5 unchanged on re-run" \
+    "test '$T12_U_BEFORE' = '$T12_U_AFTER' && echo OK" \
+    "^OK$"
+
+  # === Real-vault isolation invariants (NEW-W-1; Phase-4 discipline) ===
+  if [[ "$T12_REAL_U_BEFORE" = "ABSENT" ]]; then
+    T12_REAL_U_AFTER="ABSENT"
+    [[ -f "$T12_REAL_U" ]] && T12_REAL_U_AFTER=$(_t12_md5 "$T12_REAL_U")
+  else
+    T12_REAL_U_AFTER=$(_t12_md5 "$T12_REAL_U")
+  fi
+  if [[ "$T12_REAL_A_BEFORE" = "ABSENT" ]]; then
+    T12_REAL_A_AFTER="ABSENT"
+    [[ -f "$T12_REAL_A" ]] && T12_REAL_A_AFTER=$(_t12_md5 "$T12_REAL_A")
+  else
+    T12_REAL_A_AFTER=$(_t12_md5 "$T12_REAL_A")
+  fi
+  if [[ "$T12_REAL_DB_BEFORE" = "ABSENT" ]]; then
+    T12_REAL_DB_AFTER="ABSENT"
+    [[ -f "$T12_REAL_DB" ]] && T12_REAL_DB_AFTER=$(_t12_md5 "$T12_REAL_DB")
+  else
+    T12_REAL_DB_AFTER=$(_t12_md5 "$T12_REAL_DB")
+  fi
+
+  run_check 12 "isolation: real ~/vaults/ark/lessons/universal-patterns.md md5 unchanged" \
+    "test '$T12_REAL_U_BEFORE' = '$T12_REAL_U_AFTER' && echo OK" \
+    "^OK$"
+  run_check 12 "isolation: real ~/vaults/ark/bootstrap/anti-patterns.md md5 unchanged" \
+    "test '$T12_REAL_A_BEFORE' = '$T12_REAL_A_AFTER' && echo OK" \
+    "^OK$"
+  run_check 12 "isolation: real ~/vaults/ark/observability/policy.db md5 unchanged" \
+    "test '$T12_REAL_DB_BEFORE' = '$T12_REAL_DB_AFTER' && echo OK" \
+    "^OK$"
+
+  # === read -p regression on the two delivery-path scripts modified by 06-04 ===
+  # Self-referential trap (Phase 4): grep skips comment lines.
+  run_check 12 "scripts/ark has 0 non-comment 'read -p' lines" \
+    "n=\$(grep -nE '^[^#]*read -p' '$VAULT_PATH/scripts/ark' 2>/dev/null | wc -l | tr -d ' '); test \"\${n:-0}\" -eq 0 && echo OK" \
+    "^OK$"
+  run_check 12 "scripts/ark-deliver.sh has 0 non-comment 'read -p' lines" \
+    "n=\$(grep -nE '^[^#]*read -p' '$VAULT_PATH/scripts/ark-deliver.sh' 2>/dev/null | wc -l | tr -d ' '); test \"\${n:-0}\" -eq 0 && echo OK" \
+    "^OK$"
+
+  # Cleanup
+  rm -rf "$T12_PORTFOLIO" "$T12_VAULT"
+  rm -f "$T12_RUN_LOG"
+fi
+
 # ━━━ Generate report ━━━
 TOTAL=$((PASS + WARN + FAIL + SKIP))
 EXIT_CODE=0
@@ -1078,6 +1350,7 @@ The CEO (you) reviews this report. Per-tier breakdown:
 - **Tier 9 (self-improving self-heal):** AOS Phase 3 — synthetic-fixture pipeline, isolated vault
 - **Tier 10 (bootstrap autonomy):** AOS Phase 4 — 5-fixture description-mode scaffold + isolation
 - **Tier 11 (portfolio autonomy):** AOS Phase 5 — 3-project / 2-customer portfolio_decide stress + isolation
+- **Tier 12 (cross-customer learning):** AOS Phase 6 — synthetic 3-customer fixture, full promoter pipeline (scan → cluster → classify → apply), idempotency proof, real-vault isolation invariant
 
 If any failure is critical, fix and re-run before using Ark on real work.
 
