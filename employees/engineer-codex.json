@@ -2,12 +2,20 @@
   "id": "engineer-codex",
   "title": "Software Engineer (Codex)",
   "department": "Engineering",
-  "skills": ["typescript", "javascript", "react", "node", "rust", "python", "go"],
+  "skills": [
+    "typescript",
+    "javascript",
+    "react",
+    "node",
+    "rust",
+    "python",
+    "go"
+  ],
   "dispatch": {
     "type": "cli",
     "command": "codex exec -"
   },
   "cost_per_task": "free",
-  "status": "available",
-  "description": "Primary code generation engineer. Free tier via Codex CLI. Writes implementation per architect's design. Atomic commits per task."
+  "status": "blocked",
+  "description": "Primary code generation engineer. Free tier via Codex CLI. Writes implementation per architect's design. Atomic commits per task. [Currently blocked: free tier quota exhausted, will reset daily]"
 }

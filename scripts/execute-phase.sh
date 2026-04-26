@@ -189,10 +189,54 @@ Constraints:
     log "Current budget tier: $current_tier"
   fi
 
-  # Get recommended model for current tier (called from project context)
+  # === Auto-detect runtime context: am I in Claude Code? ===
+  local primary_dispatcher
+  primary_dispatcher=$(bash "$VAULT_PATH/scripts/ark-context.sh" --primary 2>/dev/null || echo "regex-fallback")
+  log "Auto-detected primary dispatcher: $primary_dispatcher"
+
+  # If running inside Claude Code, the active session IS the engineer.
+  # Don't waste cycles probing exhausted external CLIs — emit a structured
+  # request that the calling Claude Code session can fulfill via Agent tool.
+  if [[ "$primary_dispatcher" == "claude-code-session" ]]; then
+    log "🤖 Active Claude Code session detected — handing task to session dispatcher"
+    local session_handoff_file="$PHASE_DIR/task-$task_num-claude-handoff.md"
+    cat > "$session_handoff_file" <<HANDOFF
+# Task Handoff to Claude Code Session
+
+**Project:** $(basename "$PROJECT_DIR")
+**Phase:** $PHASE_NUM
+**Task #$task_num:** $task_desc
+
+## Context Files (read these)
+- $PROJECT_DIR/CLAUDE.md
+- $PROJECT_DIR/.planning/PROJECT.md
+- $PROJECT_DIR/.planning/STATE.md
+- $PROJECT_DIR/tasks/lessons.md (if exists)
+- $PHASE_DIR/PLAN.md
+
+## Required Action
+The Claude Code session should now:
+1. Read context files
+2. Write the file(s) directly using Write/Edit tools
+3. Run \`npm test\` and \`npx tsc --noEmit\` for verification
+4. Commit atomically per task
+
+## Why This Path
+- Codex CLI: $(bash "$VAULT_PATH/scripts/ark-context.sh" --json | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['dispatchers']['codex']['status'])")
+- Gemini CLI: $(bash "$VAULT_PATH/scripts/ark-context.sh" --json | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['dispatchers']['gemini']['status'])")
+- Haiku API: $(bash "$VAULT_PATH/scripts/ark-context.sh" --json | python3 -c "import json,sys; d=json.load(sys.stdin); print('available' if d['dispatchers']['haiku-api']['available'] else 'no API key')")
+
+The active session is the most reliable dispatcher right now.
+HANDOFF
+    log "Handoff written: $session_handoff_file"
+    log "→ Claude Code session should now write files directly via Write tool"
+    return 2  # Special exit code: 2 = handoff to session, not failure
+  fi
+
+  # Get recommended model for current tier (used when not in Claude Code)
   local recommended_model=""
   if cd "$PROJECT_DIR" 2>/dev/null; then
-    recommended_model=$(bash "$VAULT_PATH/scripts/ark-budget.sh" --route engineering 2>/dev/null || echo "codex")
+    recommended_model=$(bash "$VAULT_PATH/scripts/ark-budget.sh" --route engineering 2>/dev/null || echo "$primary_dispatcher")
   fi
   log "Tier-recommended model: $recommended_model"
 

@@ -1,0 +1,21 @@
+{
+  "id": "engineer-active-session",
+  "title": "Active Claude Code Session",
+  "department": "Engineering",
+  "skills": [
+    "typescript",
+    "javascript",
+    "python",
+    "rust",
+    "any-language",
+    "complex-reasoning",
+    "agent-dispatch"
+  ],
+  "dispatch": {
+    "type": "claude-code-session",
+    "subagent_type": "active-session"
+  },
+  "cost_per_task": "session-budget",
+  "status": "available",
+  "description": "The currently-running Claude Code session. Auto-detected primary dispatcher when external CLIs are exhausted. Capable of writing files directly via Write/Edit tools and dispatching to subagents via Agent tool."
+}

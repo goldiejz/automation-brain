@@ -2,12 +2,17 @@
   "id": "engineer-claude",
   "title": "Software Engineer (Claude)",
   "department": "Engineering",
-  "skills": ["typescript", "react", "complex-refactors", "edge-cases"],
+  "skills": [
+    "typescript",
+    "react",
+    "complex-refactors",
+    "edge-cases"
+  ],
   "dispatch": {
     "type": "api",
     "model": "claude-sonnet-4-6"
   },
   "cost_per_task": "medium",
-  "status": "available",
-  "description": "Senior engineer for complex refactors. Sonnet via API. Fallback when Codex hits limits or task needs deeper reasoning."
+  "status": "blocked",
+  "description": "Senior engineer for complex refactors. Sonnet via API. Fallback when Codex hits limits or task needs deeper reasoning. [Currently blocked: ANTHROPIC_API_KEY not set]"
 }
