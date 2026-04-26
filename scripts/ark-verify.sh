@@ -434,6 +434,188 @@ run_check 8 "End-to-end: BLACK tier + quota stubs → regex-fallback (no input)"
   "bash -c 'unset ANTHROPIC_API_KEY; ARK_FORCE_QUOTA_CODEX=true ARK_FORCE_QUOTA_GEMINI=true ARK_HOME=$VAULT_PATH bash -c \"source $VAULT_PATH/scripts/ark-policy.sh; policy_dispatcher_route standard BLACK\" </dev/null'" \
   "^regex-fallback$"
 
+# ━━━ Tier 9: Self-improving self-heal (AOS Phase 3) ━━━
+# Synthetic SQLite audit log → assert promote/deprecate/no-op outcomes match contract.
+# Isolated VAULT_PATH (tmp) — never poisons the real vault. Substrate is SQLite per
+# Phase 2.5 + SUPERSEDES.md — synthetic data is INSERTed, not appended JSONL.
+#
+# Fixture composition (matches PLAN.md 03-07):
+#   Pattern A: (dispatch_failure, SELF_HEAL, gemini, deep)   × 6 — 5 success + 1 failure (83%) → PROMOTE
+#   Pattern B: (dispatch_failure, SELF_HEAL, codex,  simple) × 6 — 1 success + 5 failure (17%) → DEPRECATE
+#   Pattern C: (dispatch_failure, SELF_HEAL, haiku,  medium) × 6 — 3 success + 3 failure (50%) → IGNORE
+#   Pattern D: (budget,           ESCALATE_MONTHLY_CAP, none, none) × 6 — all success → IGNORE (true-blocker)
+#   Pattern E: (escalation,       ARCHITECTURAL_AMBIGUOUS, none, none) × 6 — all success → IGNORE (true-blocker, SQL-filtered)
+if should_run_tier 9; then
+  echo ""
+  echo -e "${BLUE}━━━ Tier 9: Self-improving self-heal ━━━${NC}"
+fi
+
+run_existence_check 9 "outcome-tagger.sh present" "$VAULT_PATH/scripts/lib/outcome-tagger.sh"
+run_existence_check 9 "policy-learner.sh present" "$VAULT_PATH/scripts/policy-learner.sh"
+run_existence_check 9 "policy-digest.sh present" "$VAULT_PATH/scripts/lib/policy-digest.sh"
+
+run_check 9 "policy-learner.sh syntax valid" \
+  "bash -n '$VAULT_PATH/scripts/policy-learner.sh' && echo OK" \
+  "OK"
+run_check 9 "outcome-tagger.sh syntax valid" \
+  "bash -n '$VAULT_PATH/scripts/lib/outcome-tagger.sh' && echo OK" \
+  "OK"
+run_check 9 "policy-digest.sh syntax valid" \
+  "bash -n '$VAULT_PATH/scripts/lib/policy-digest.sh' && echo OK" \
+  "OK"
+
+run_check 9 "ark learn subcommand registered" \
+  "grep -cE '^[[:space:]]*learn\\)' '$VAULT_PATH/scripts/ark'" \
+  "^[1-9]"
+
+run_check 9 "ark-deliver post-phase learner trigger present" \
+  "grep -c policy-learner.sh '$VAULT_PATH/scripts/ark-deliver.sh'" \
+  "^[1-9]"
+
+run_check 9 "policy-learner self-test passes" \
+  "bash '$VAULT_PATH/scripts/policy-learner.sh' test 2>&1 | tail -3" \
+  "ALL .* TESTS PASSED|tests passed|self-test|✅"
+
+# === Tier 9 synthetic-pipeline test in isolated tmp vault ===
+# Tier 9 isolation pattern mirrors Phase 2 NEW-W-1: tmp ARK_HOME, separate
+# ARK_POLICY_DB, real vault DB md5'd before+after to guarantee no leakage.
+if should_run_tier 9; then
+  TIER9_TMP=$(mktemp -d -t ark-tier9.XXXXXX)
+  trap "rm -rf '$TIER9_TMP'" EXIT
+  mkdir -p "$TIER9_TMP/observability"
+  TIER9_DB="$TIER9_TMP/observability/policy.db"
+
+  # Seed policy.yml + git repo so learner_apply_pending can commit
+  cat > "$TIER9_TMP/policy.yml" <<'YML'
+# tier9 synthetic vault
+learned_patterns: {}
+YML
+  ( cd "$TIER9_TMP" && git init --quiet && \
+    git -c user.email=t@t.test -c user.name=Tier9 add -A && \
+    git -c user.email=t@t.test -c user.name=Tier9 commit -m init --quiet ) >/dev/null 2>&1
+
+  # Initialize SQLite DB with schema
+  ARK_POLICY_DB="$TIER9_DB" bash -c "source '$VAULT_PATH/scripts/lib/policy-db.sh'; db_init" >/dev/null 2>&1
+
+  # INSERT synthetic decisions (substrate is SQLite per SUPERSEDES.md)
+  python3 - "$TIER9_DB" <<'PY' >/dev/null 2>&1
+import sqlite3, sys, datetime
+db = sys.argv[1]
+con = sqlite3.connect(db)
+cur = con.cursor()
+base = datetime.datetime(2026, 4, 26, 10, 0, 0)
+i = 0
+def emit(cls, dec, disp, cplx, outcome):
+    global i
+    ts = (base + datetime.timedelta(minutes=i)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    ts_compact = (base + datetime.timedelta(minutes=i)).strftime("%Y%m%dT%H%M%SZ")
+    did = "%s-%016x" % (ts_compact, i + 1)
+    if disp == "none" and cplx == "none":
+        ctx = None
+    else:
+        ctx = '{"dispatcher":"%s","complexity":"%s"}' % (disp, cplx)
+    cur.execute("INSERT INTO decisions (decision_id, ts, schema_version, class, decision, reason, context, outcome) VALUES (?, ?, 1, ?, ?, 'synthetic-tier9', ?, ?)",
+                (did, ts, cls, dec, ctx, outcome))
+    i += 1
+# A: gemini/deep PROMOTE
+for o in ["success"]*5 + ["failure"]:
+    emit("dispatch_failure", "SELF_HEAL", "gemini", "deep", o)
+# B: codex/simple DEPRECATE
+for o in ["success"] + ["failure"]*5:
+    emit("dispatch_failure", "SELF_HEAL", "codex", "simple", o)
+# C: haiku/medium IGNORE (mediocre)
+for o in ["success"]*3 + ["failure"]*3:
+    emit("dispatch_failure", "SELF_HEAL", "haiku", "medium", o)
+# D: budget true-blocker
+for _ in range(6):
+    emit("budget", "ESCALATE_MONTHLY_CAP", "none", "none", "success")
+# E: escalation true-blocker (SQL-filtered before classify)
+for _ in range(6):
+    emit("escalation", "ARCHITECTURAL_AMBIGUOUS", "none", "none", "success")
+con.commit()
+con.close()
+PY
+
+  # Snapshot real vault DB md5 BEFORE (isolation guarantee)
+  REAL_DB="$VAULT_PATH/observability/policy.db"
+  REAL_MD5_BEFORE=$(md5 -q "$REAL_DB" 2>/dev/null || md5sum "$REAL_DB" 2>/dev/null | awk '{print $1}')
+  REAL_MD5_BEFORE="${REAL_MD5_BEFORE:-NO_DB}"
+
+  # Run learner with auto-apply against the isolated tmp vault
+  ARK_HOME="$TIER9_TMP" \
+  ARK_POLICY_DB="$TIER9_DB" \
+  PENDING_FILE="$TIER9_TMP/observability/policy-evolution-pending.jsonl" \
+  LEARNER_AUTO_APPLY=1 \
+    bash "$VAULT_PATH/scripts/policy-learner.sh" --full >"$TIER9_TMP/learner.out" 2>"$TIER9_TMP/learner.err" || true
+
+  # The pending sidecar may be archived as .applied-<epoch> after auto-apply.
+  # Check for either form.
+  TIER9_PENDING_GLOB="$TIER9_TMP/observability/policy-evolution-pending.jsonl*"
+
+  REAL_MD5_AFTER=$(md5 -q "$REAL_DB" 2>/dev/null || md5sum "$REAL_DB" 2>/dev/null | awk '{print $1}')
+  REAL_MD5_AFTER="${REAL_MD5_AFTER:-NO_DB}"
+
+  # 9.synthetic.1 — exactly 1 PROMOTE entry in pending sidecar (gemini/deep)
+  run_check 9 "synthetic: 1 promotion in pending sidecar" \
+    "n=\$(cat $TIER9_PENDING_GLOB 2>/dev/null | grep -c '\"action\":\"promote\"'); test \"\${n:-0}\" -eq 1 && echo OK" \
+    "^OK$"
+
+  # 9.synthetic.2 — exactly 1 DEPRECATE entry (codex/simple)
+  run_check 9 "synthetic: 1 deprecation in pending sidecar" \
+    "n=\$(cat $TIER9_PENDING_GLOB 2>/dev/null | grep -c '\"action\":\"deprecate\"'); test \"\${n:-0}\" -eq 1 && echo OK" \
+    "^OK$"
+
+  # 9.synthetic.3 — zero entries for haiku/medium (mediocre middle)
+  run_check 9 "synthetic: zero entries for haiku/medium (mediocre)" \
+    "! cat $TIER9_PENDING_GLOB 2>/dev/null | grep -q '\"dispatcher\":\"haiku\"' && echo OK" \
+    "^OK$"
+
+  # 9.synthetic.4 — zero entries for budget/ESCALATE_MONTHLY_CAP (true-blocker)
+  run_check 9 "synthetic: zero entries for budget/ESCALATE_MONTHLY_CAP (true-blocker)" \
+    "! cat $TIER9_PENDING_GLOB 2>/dev/null | grep -q 'ESCALATE_MONTHLY_CAP' && echo OK" \
+    "^OK$"
+
+  # 9.synthetic.5 — zero entries for class:escalation (true-blocker, SQL-filtered)
+  run_check 9 "synthetic: zero entries for class:escalation (true-blocker)" \
+    "! cat $TIER9_PENDING_GLOB 2>/dev/null | grep -q '\"class\":\"escalation\"' && echo OK" \
+    "^OK$"
+
+  # 9.synthetic.6 — auto-patch: policy.yml gained both gemini (promote) and codex (deprecate) keys
+  run_check 9 "synthetic: policy.yml gained gemini+codex learned_patterns" \
+    "grep -q gemini '$TIER9_TMP/policy.yml' && grep -q codex '$TIER9_TMP/policy.yml' && echo OK" \
+    "^OK$"
+
+  # 9.synthetic.7 — digest written with Promoted + Deprecated sections
+  run_check 9 "synthetic: digest has Promoted + Deprecated sections" \
+    "grep -q '^## Promoted' '$TIER9_TMP/observability/policy-evolution.md' && grep -q '^## Deprecated' '$TIER9_TMP/observability/policy-evolution.md' && echo OK" \
+    "^OK$"
+
+  # 9.synthetic.8 — exactly 2 self_improve audit lines (1 promote + 1 deprecate)
+  run_check 9 "synthetic: 2 self_improve audit entries in tmp DB" \
+    "n=\$(sqlite3 '$TIER9_DB' \"SELECT COUNT(*) FROM decisions WHERE class='self_improve';\"); test \"\${n:-0}\" -eq 2 && echo OK" \
+    "^OK$"
+
+  # 9.synthetic.9 — git committed (≥1 commit beyond the init commit) in tmp vault
+  run_check 9 "synthetic: tmp vault git gained ≥1 self_improve commit" \
+    "n=\$(git -C '$TIER9_TMP' log --oneline 2>/dev/null | wc -l | tr -d ' '); test \"\${n:-0}\" -ge 2 && echo OK" \
+    "^OK$"
+
+  # 9.synthetic.10 — isolation: real vault policy.db unchanged
+  run_check 9 "synthetic: real vault policy.db unchanged (isolation guarantee)" \
+    "test '$REAL_MD5_BEFORE' = '$REAL_MD5_AFTER' && echo OK" \
+    "^OK$"
+
+  # 9.synthetic.11 — idempotency: re-running with empty/already-applied pending is a no-op
+  ARK_HOME="$TIER9_TMP" \
+  ARK_POLICY_DB="$TIER9_DB" \
+  PENDING_FILE="$TIER9_TMP/observability/policy-evolution-pending.jsonl" \
+  LEARNER_AUTO_APPLY=1 \
+    bash "$VAULT_PATH/scripts/policy-learner.sh" --full >"$TIER9_TMP/learner2.out" 2>"$TIER9_TMP/learner2.err" || true
+  run_check 9 "synthetic: idempotent re-run produces no new self_improve entries" \
+    "n=\$(sqlite3 '$TIER9_DB' \"SELECT COUNT(*) FROM decisions WHERE class='self_improve';\"); test \"\${n:-0}\" -eq 2 && echo OK" \
+    "^OK$"
+fi
+
 # ━━━ Generate report ━━━
 TOTAL=$((PASS + WARN + FAIL + SKIP))
 EXIT_CODE=0
@@ -487,6 +669,9 @@ The CEO (you) reviews this report. Per-tier breakdown:
 - **Tier 4 (project creation):** End-to-end create + scaffold
 - **Tier 5 (production safety):** Promote gates
 - **Tier 6 (hooks + observability):** Auto-run infrastructure
+- **Tier 7 (GSD compatibility):** Shared phase-shape lib across delivery scripts
+- **Tier 8 (autonomy under stress):** AOS Phase 2 — policy engine, audit log, dispatcher routing
+- **Tier 9 (self-improving self-heal):** AOS Phase 3 — synthetic-fixture pipeline, isolated vault
 
 If any failure is critical, fix and re-run before using Ark on real work.
 
