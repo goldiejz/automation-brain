@@ -166,18 +166,30 @@ Usage: brain [command]
 
 Commands:
   AUTONOMOUS DELIVERY:
-    create      Scaffold a new project from cached templates
-    deliver     Run autonomous delivery (plan→execute→verify→deploy each phase)
+    create      Scaffold a new project (--type --stack --deploy)
+    deliver     Run autonomous delivery (team-validated per phase)
+    promote     Deploy to staging or production (production requires --confirm)
 
   PROJECT MANAGEMENT:
     init        Initialize .parent-automation in current project
     align       Standardize imported project to canonical structure
     bootstrap   Record bootstrap decision (manual)
     sync        Pull latest vault, refresh local snapshot
+    secrets     Set up secrets management for current deploy target
+    lifecycle   Project lifecycle: status|archive|maintain|sunset|revive
 
-  OBSERVABILITY:
+  GOVERNANCE:
+    budget      Token usage tracking and budget caps
+    portfolio   CEO dashboard across all brain-integrated projects
+    report      Stakeholder reports (--for customer|investor|team|self)
+
+  HEALTH & MAINTENANCE:
     status      Show snapshot + decision log state
     doctor      Comprehensive health check
+    backup      Create timestamped vault backup
+    validate    Detect drift in cached templates
+
+  OBSERVABILITY:
     insights    Show cross-project insights from Phase 6
     lessons     List all lessons in the brain
     phase-6     Manually trigger Phase 6 observability daemon
@@ -214,6 +226,14 @@ case "$COMMAND" in
   doctor)     bash "$VAULT_PATH/scripts/brain-doctor.sh" ;;
   create)     shift; bash "$VAULT_PATH/scripts/brain-create.sh" "$@" ;;
   deliver)    shift; bash "$VAULT_PATH/scripts/brain-deliver.sh" "$@" ;;
+  promote)    shift; bash "$VAULT_PATH/scripts/brain-promote.sh" "$@" ;;
+  budget)     shift; bash "$VAULT_PATH/scripts/brain-budget.sh" "$@" ;;
+  portfolio)  shift; bash "$VAULT_PATH/scripts/brain-portfolio.sh" "$@" ;;
+  secrets)    shift; bash "$VAULT_PATH/scripts/brain-secrets.sh" "$@" ;;
+  lifecycle)  shift; bash "$VAULT_PATH/scripts/brain-lifecycle.sh" "$@" ;;
+  backup)     bash "$VAULT_PATH/scripts/brain-backup.sh" ;;
+  validate)   shift; bash "$VAULT_PATH/scripts/brain-validate.sh" "$@" ;;
+  report)     shift; bash "$VAULT_PATH/scripts/brain-report.sh" "$@" ;;
   insights)   cmd_insights ;;
   lessons)    cmd_lessons ;;
   phase-6)    cmd_phase6 ;;
