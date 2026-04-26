@@ -251,11 +251,28 @@ execute_phase() {
 verify_phase() {
   local phase_num="$1"
 
+  # Ensure dependencies installed first
+  if [[ -f "$PROJECT_DIR/package.json" ]] && [[ ! -d "$PROJECT_DIR/node_modules" ]]; then
+    log INFO "Installing npm dependencies (first run)..."
+    cd "$PROJECT_DIR" && npm install --silent 2>&1 | tail -3
+  fi
+
   # Run tests if package.json has test script
   if [[ -f "$PROJECT_DIR/package.json" ]] && grep -q '"test"' "$PROJECT_DIR/package.json" 2>/dev/null; then
-    log INFO "Running npm test..."
-    cd "$PROJECT_DIR" && npm test --silent 2>&1 | tail -10
-    return $?
+    # Skip tests if no test files exist yet (Phase 0 has no implementation)
+    local has_test_files=false
+    if [[ -d "$PROJECT_DIR/test" ]] || [[ -d "$PROJECT_DIR/tests" ]] || \
+       find "$PROJECT_DIR/src" -name "*.test.ts" -o -name "*.spec.ts" 2>/dev/null | head -1 | grep -q .; then
+      has_test_files=true
+    fi
+
+    if [[ "$has_test_files" == "true" ]]; then
+      log INFO "Running npm test..."
+      cd "$PROJECT_DIR" && npm test --silent 2>&1 | tail -10
+      return $?
+    else
+      log INFO "No test files yet — skipping test run for Phase $phase_num"
+    fi
   fi
 
   # Run TypeScript check if applicable

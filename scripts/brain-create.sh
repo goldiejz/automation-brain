@@ -86,58 +86,99 @@ echo -e "  ${GREEN}✅${NC} Directory created"
 SNAPSHOT_DIR="$VAULT_PATH/cache/query-responses"
 TEMPLATE_DIR="$VAULT_PATH/bootstrap/project-types"
 
-# Generate CLAUDE.md from cached template
-if [[ -f "$SNAPSHOT_DIR/01-project-section-draft.md" ]]; then
-  cat > "$PROJECT_DIR/CLAUDE.md" <<EOF
+# Helper: extract content from cache file (strip YAML frontmatter)
+extract_cache_content() {
+  local file="$1"
+  if [[ -f "$file" ]]; then
+    # Skip first frontmatter block (between --- markers), then take next 30 lines
+    awk '/^---$/{count++; next} count==2{print}' "$file" | head -30
+  fi
+}
+
+# Generate clean CLAUDE.md
+cat > "$PROJECT_DIR/CLAUDE.md" <<EOF
 # $PROJECT_NAME — Repo Instruction
 
 > Project-specific. Mutable status lives in \`.planning/STATE.md\`.
 
 ## Project
 
-$PROJECT_NAME — $PROJECT_TYPE for $CUSTOMER.
+$PROJECT_NAME — $PROJECT_TYPE platform for $CUSTOMER.
 
 ## Purpose
 
-[TODO: Define core purpose]
+[TODO: Define durable purpose — what problem does this solve, for whom, why now]
 
-## Current Scope
+## Current Scope (Phase 1)
 
-[TODO: List Phase 1 features]
+[TODO: List core features — be specific, name acceptance criteria]
 
 ## Out of Scope
 
-[TODO: List deferred features]
+[TODO: Explicit boundaries — what is deferred, what is never planned]
 
 ## Constraints
 
-$(cat "$SNAPSHOT_DIR/05-constraints.md" 2>/dev/null | head -30 || echo "[TODO: Define constraints]")
+- **Runtime:** Cloudflare Workers (or Pages, depending on type)
+- **Database:** D1 (SQLite) with Drizzle ORM, tenant-scoped via \`tenant_id\`
+- **Auth:** Centralized in \`src/lib/auth.ts\`, role checks via \`requireRole()\`
+- **Currency:** Money columns end in \`_zar\` or \`_usd\`. Duration columns end in \`_minutes\` or \`_seconds\`. Never unsuffixed.
+- **Tenancy:** Multi-tenant from day zero; tenant_id NEVER from request body
 
 ## Architecture Conventions
 
-$(cat "$SNAPSHOT_DIR/03-architecture-conventions.md" 2>/dev/null | head -30 || echo "[TODO: Define conventions]")
+- **Tenant on every business table** — middleware-enforced, never trust user input
+- **RBAC centralized** in \`src/lib/rbac.ts\` — single source of truth for role arrays
+- **Route/compute split** — thin HTTP boundaries, testable business logic
+- **Schema-first migrations** via Drizzle, applied with \`wrangler d1 migrations apply\`
+- **Audit columns** on every business table: created_at, created_by, updated_at, updated_by
+- **Soft delete** on tickets/timesheets/timelines; hard delete forbidden
+- **Event emission** on every mutation — typed events to Cloudflare Queues
 
 ## RBAC Structure
 
-See \`src/lib/rbac.ts\`. All role checks use \`requireRole()\` — never inline arrays.
+See \`src/lib/rbac.ts\` — single source of truth.
 
-$(cat "$SNAPSHOT_DIR/04-rbac-structure.md" 2>/dev/null | head -20 || echo "[TODO: Define roles]")
+Roles: customer | staff | manager | admin
+
+All route guards use \`requireRole(userRole, requiredRole)\`. Never inline role arrays.
 
 ## Current Truth Sources
 
-1. \`.planning/STATE.md\` — primary implementation truth
-2. \`.planning/ALPHA.md\` — gate definition
-3. \`.planning/REQUIREMENTS.md\` — mandatory requirements
+1. \`.planning/STATE.md\` — primary implementation truth (test/route/table counts, deploy posture)
+2. \`.planning/ALPHA.md\` — gate definition (when is this ready)
+3. \`.planning/REQUIREMENTS.md\` — mandatory requirements with evidence
 4. \`.planning/ROADMAP.md\` — phase sequencing
 5. \`tasks/todo.md\` — active backlog
-6. \`tasks/lessons.md\` — captured corrections
+6. \`tasks/lessons.md\` — captured corrections (rules, not descriptions)
+
+## Workflow
+
+Required reading before any non-trivial change:
+
+1. \`~/vaults/automation-brain/STRUCTURE.md\` — canonical structure
+2. This file
+3. \`.planning/STATE.md\` — live truth
+4. \`.planning/PROJECT.md\` — durable purpose
+5. \`.planning/ROADMAP.md\` — phase sequencing
+6. \`tasks/lessons.md\` — past corrections (don't regress)
+7. \`tasks/todo.md\` — active work
+
+Brain integration: \`.parent-automation/brain-snapshot/\` provides cached templates and 80+ lessons. Run \`brain status\` for current state.
 
 ## Anti-Patterns
 
-$(cat "$SNAPSHOT_DIR/09-anti-patterns.md" 2>/dev/null | head -20 || echo "[TODO]")
+- Inline role arrays (\`['admin', 'staff'].includes(...)\`) — use \`requireRole()\`
+- Trusting body-supplied tenant_id — always from authenticated session
+- Unsuffixed money columns (\`amount\` instead of \`amount_zar\`)
+- Calling code-shipped "production-ready" without staging verification
+- Skipping \`tasks/lessons.md\` — past lessons must apply
+
+## Drift Rule
+
+If this file contradicts \`.planning/STATE.md\` or current code, this file is wrong. Fix one or the other; never leave them disagreeing.
 EOF
-  echo -e "  ${GREEN}✅${NC} CLAUDE.md generated from cached templates"
-fi
+echo -e "  ${GREEN}✅${NC} CLAUDE.md generated from cached templates"
 
 # Generate .planning/ files
 mkdir -p "$PROJECT_DIR/.planning"
