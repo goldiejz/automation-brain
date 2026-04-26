@@ -291,21 +291,20 @@ apply_task_output() {
   local out_file="/tmp/brain-output-$$.txt"
   echo "$output" > "$out_file"
 
-  # Robust Python parser handling 4 common AI output formats:
+  # Robust Python parser handling 3 common AI output formats:
   # 1. ```<filepath>\n<content>\n```
   # 2. **File: `<filepath>`**\n```language\n<content>\n```
   # 3. ## <filepath>\n```\n<content>\n```
-  # 4. File: <filepath>\n<content blank line> (no fence) — only as last resort
-  export PROJECT_DIR="$PROJECT_DIR"
-  local applied_files=$(python3 <<'PYEOF''
+  export BRAIN_OUTPUT_FILE="$out_file"
+  export BRAIN_PROJECT_DIR="$PROJECT_DIR"
+  local applied_files=$(python3 <<'PYEOF'
 import re
 import os
-import sys
 
-with open("/tmp/brain-output-$$.txt".replace('$$', str(os.getpid())), 'r') as f:
+with open(os.environ['BRAIN_OUTPUT_FILE'], 'r') as f:
     output = f.read()
 
-project_dir = os.environ.get('PROJECT_DIR', '.')
+project_dir = os.environ['BRAIN_PROJECT_DIR']
 applied = []
 
 # Common file extensions we expect
