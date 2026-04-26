@@ -208,6 +208,8 @@ Commands:
     observe     Continuous monitoring + pattern detection (long-running daemon)
 
   OBSERVABILITY:
+    dashboard   CEO dashboard (read-only). Default: bash version (Tier A, <2s).
+                  Flag: --tui  Live Rust TUI with vim keybindings (requires Rust build).
     insights    Show cross-project insights from Phase 6
     lessons     List all lessons in the ark
     learn       Run the policy-learner (--full | --since DATE; default: last 7 days)
@@ -259,6 +261,67 @@ case "$COMMAND" in
   align)      cmd_align "$@" ;;
   doctor)     bash "$VAULT_PATH/scripts/ark-doctor.sh" ;;
   verify)     shift; bash "$VAULT_PATH/scripts/ark-verify.sh" "$@" ;;
+  dashboard)
+    shift
+    # Tier A (bash, default) vs Tier B (Rust TUI, --tui flag).
+    # Phase 6.5 — REQ-DASH-01 (bash invocation), REQ-DASH-06 (TUI invocation).
+    # Both tiers are read-only over policy.db; mark-resolved flows route
+    # through 'ark escalations --resolve <id>' (single-writer path).
+    case "${1:-}" in
+      --tui)
+        shift
+        _tui_bin="$VAULT_PATH/scripts/ark-dashboard/target/release/ark-dashboard"
+        if [[ ! -x "$_tui_bin" ]]; then
+          echo -e "${RED}❌ TUI binary not built.${NC}" >&2
+          echo "   Run: cd $VAULT_PATH/scripts/ark-dashboard && cargo build --release" >&2
+          echo "   (Tier B requires the Rust toolchain. Default 'ark dashboard' uses the bash version.)" >&2
+          exit 1
+        fi
+        exec "$_tui_bin" "$@"
+        ;;
+      --help|-h)
+        cat <<EOF
+ark dashboard — CEO dashboard (read-only over vault audit data)
+
+Usage:
+  ark dashboard              Tier A bash dashboard (default, <2s, 7 sections)
+  ark dashboard --tui        Tier B live Rust TUI (vim keybindings, 2s polling)
+  ark dashboard --help       Show this help
+
+Tier A flags (passed through to scripts/ark-dashboard.sh):
+  --no-color                 Strip ANSI escapes (also honors NO_COLOR env)
+  --section <name>           Render a single section only
+
+Tier B requires the Rust toolchain. Build once with:
+  cd $VAULT_PATH/scripts/ark-dashboard && cargo build --release
+
+Both tiers are strictly read-only. Mark-resolved actions route through
+'ark escalations --resolve <id>' (single-writer audit path).
+EOF
+        exit 0
+        ;;
+      --*)
+        # Unknown long flag → reject before passthrough
+        if [[ "${1:-}" != "--no-color" && "${1:-}" != "--section" ]]; then
+          echo -e "${RED}❌ Unknown flag for 'ark dashboard': $1${NC}" >&2
+          echo "Usage: ark dashboard [--tui | --help | --no-color | --section <name>]" >&2
+          exit 1
+        fi
+        if [[ ! -f "$VAULT_PATH/scripts/ark-dashboard.sh" ]]; then
+          echo -e "${RED}❌ scripts/ark-dashboard.sh not found — Phase 6.5 not yet installed${NC}" >&2
+          exit 1
+        fi
+        exec bash "$VAULT_PATH/scripts/ark-dashboard.sh" "$@"
+        ;;
+      *)
+        if [[ ! -f "$VAULT_PATH/scripts/ark-dashboard.sh" ]]; then
+          echo -e "${RED}❌ scripts/ark-dashboard.sh not found — Phase 6.5 not yet installed${NC}" >&2
+          exit 1
+        fi
+        exec bash "$VAULT_PATH/scripts/ark-dashboard.sh" "$@"
+        ;;
+    esac
+    ;;
   observe)    shift; bash "$VAULT_PATH/scripts/ark-observer.sh" "$@" ;;
   context)    shift; bash "$VAULT_PATH/scripts/ark-context.sh" "$@" ;;
   create)     shift; cmd_create "$@" ;;
